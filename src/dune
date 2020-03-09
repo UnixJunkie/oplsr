@@ -1,7 +1,7 @@
 (library
  (name oplsr)
  (public_name oplsr)
- (modules utls pls)
+ (modules utls PLS)
  (libraries dolog batteries))
 
 ;; never installed executables, because they don't have a public name
