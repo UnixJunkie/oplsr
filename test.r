@@ -26,13 +26,13 @@ ys_test <- data[, 1:1] # all lines, 1st column only as the response var.
 # I(x) prevents xs from having its columns split into different variables
 test_data <- data.frame(y = ys_test, x = I(xs_test))
 
-# fix nfolds in NxCV
-# find the best ncomp value
+# find the best ncomp value; segments is the number of folds for NxCV
 model <- plsr(y ~ x, method = "simpls", data = train_data, validation = "CV", segments = 5)
 r2 <- R2(model)
 plot(r2)
 r2s <- unlist(r2[1])
 ncomp_best <- which.max(r2s)
+r2_max = r2s[ncomp_best]
 
 # predict using trained model
 values <- predict(model, ncomp = ncomp_best, newdata = test_data)
