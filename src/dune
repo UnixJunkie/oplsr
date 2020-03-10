@@ -8,7 +8,7 @@
   (names to_dense)
   (public_names oplsr_to_dense)
   (modules to_dense)
-  (libraries dolog minicli batteries oplsr))
+  (libraries dolog minicli batteries oplsr molenc))
 
 ;; never installed executables, because they don't have a public name
 (executables
