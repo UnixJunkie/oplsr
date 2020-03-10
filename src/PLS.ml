@@ -48,8 +48,38 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
       List.iter Sys.remove [r_script_fn; r_log_fn];
     (ncomp, r2)
 
-let train () =
-  failwith "not implemented yet"
+let train debug nb_features train_data_csv_fn ncomp_best =
+  (* create R script and store it in a temp file *)
+  let r_script_fn = Filename.temp_file "oplsr_train_" ".r" in
+  let r_model_fn = Filename.temp_file "oplsr_train_model_" ".bin" in
+  Utls.with_out_file r_script_fn (fun out ->
+      fprintf out
+        "library('pls', quietly = TRUE)\n\
+         data <- as.matrix(read.table('%s', colClasses = 'numeric',\n\
+                           header = TRUE))\n\
+         xs <- data[, 2:%d]\n\
+         ys <- data[, 1:1]\n\
+         train_data <- data.frame(y = ys, x = I(xs))\n\
+         model <- plsr(y ~ x, ncomp = %d, method = 'simpls', \
+                       data = train_data, validation = 'none')\n\
+         save(model, file='%s')\n\
+         quit()\n"
+        train_data_csv_fn
+        (nb_features + 1)
+        ncomp_best
+        r_model_fn
+    );
+  let r_log_fn = Filename.temp_file "oplsr_train_" ".log" in
+  (* execute it *)
+  let cmd =
+    sprintf "R --vanilla --slave < %s 2>&1 > %s" r_script_fn r_log_fn in
+  if debug then Log.debug "%s" cmd;
+  if Sys.command cmd <> 0 then
+    failwith ("PLS.train: R failure: " ^ cmd);
+  if not debug then
+    List.iter Sys.remove [r_script_fn; r_log_fn];
+  r_model_fn
 
 let predict () =
   failwith "not implemented yet"
+
