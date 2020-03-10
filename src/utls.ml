@@ -45,8 +45,8 @@ let iter_on_lines_of_file fn f =
   with End_of_file -> close_in input
 
 (* get the first line (stripped) output by given command *)
-let get_command_output (cmd: string): string =
-  Log.info "get_command_output: %s" cmd;
+let get_command_output (verbose: bool) (cmd: string): string =
+  if verbose then Log.info "get_command_output: %s" cmd;
   let _stat, output = BatUnix.run_and_read cmd in
   match BatString.split_on_char '\n' output with
   | first_line :: _others -> first_line
@@ -75,3 +75,11 @@ let float_list_of_file fn =
         pred :: acc
       ) [] in
   L.rev res
+
+(* measure time spent in f (seconds) *)
+let wall_clock_time f =
+  let start = Unix.gettimeofday () in
+  let res = f () in
+  let stop = Unix.gettimeofday () in
+  let delta_t = stop -. start in
+  (delta_t, res)
