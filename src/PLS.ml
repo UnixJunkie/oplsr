@@ -80,6 +80,37 @@ let train debug nb_features train_data_csv_fn ncomp_best =
     List.iter Sys.remove [r_script_fn; r_log_fn];
   r_model_fn
 
-let predict () =
-  failwith "not implemented yet"
-
+let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
+  (* create R script and store it in a temp file *)
+  let r_script_fn = Filename.temp_file "oplsr_predict_" ".r" in
+  let r_preds_fn = Filename.temp_file "oplsr_preds_" ".txt" in
+  Utls.with_out_file r_script_fn (fun out ->
+      fprintf out
+        "library('pls', quietly = TRUE)\n\
+         load('%s')\n\
+         data <- as.matrix(read.table('%s',\n\
+                           colClasses = 'numeric', header = TRUE))\n\
+         xs <- data[, 2:%d]\n\
+         ys <- data[, 1:1]\n\
+         test_data <- data.frame(y = ys, x = I(xs))\n\
+         values <- predict(model, ncomp = %d, newdata = test_data)\n\
+         write.table(values, file = '%s', sep = '\n',\n\
+                     row.names = F, col.names = F)\n\
+         quit()\n"
+        trained_model_fn
+        test_data_csv_fn
+        (nb_features + 1)
+        ncomp_best
+        r_preds_fn
+    );
+  let r_log_fn = Filename.temp_file "oplsr_train_" ".log" in
+  (* execute it *)
+  let cmd =
+    sprintf "R --vanilla --slave < %s 2>&1 > %s" r_script_fn r_log_fn in
+  if debug then Log.debug "%s" cmd;
+  if Sys.command cmd <> 0 then
+    failwith ("PLS.predict: R failure: " ^ cmd);
+  let preds = Utls.float_list_of_file r_preds_fn in
+  if not debug then
+    List.iter Sys.remove [r_script_fn; r_log_fn; r_preds_fn];
+  preds
