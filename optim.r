@@ -27,3 +27,4 @@ r2_max = r2s[ncomp_best]
 printf <- function(...) cat(sprintf(...))
 
 printf("ncomp: %d R2: %f\n", ncomp_best, r2_max)
+quit()
