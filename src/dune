@@ -4,6 +4,12 @@
  (modules utls PLS)
  (libraries dolog batteries))
 
+(executables
+  (names to_dense)
+  (public_names oplsr_to_dense)
+  (modules to_dense)
+  (libraries dolog minicli batteries oplsr))
+
 ;; never installed executables, because they don't have a public name
 (executables
  (names test)
