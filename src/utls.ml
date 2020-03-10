@@ -1,5 +1,6 @@
 
 module L = BatList
+module Log = Dolog.Log
 
 let with_in_file fn f =
   let input = open_in_bin fn in
@@ -42,3 +43,11 @@ let iter_on_lines_of_file fn f =
       f (input_line input)
     done
   with End_of_file -> close_in input
+
+(* get the first line (stripped) output by given command *)
+let get_command_output (cmd: string): string =
+  Log.info "get_command_output: %s" cmd;
+  let _stat, output = BatUnix.run_and_read cmd in
+  match BatString.split_on_char '\n' output with
+  | first_line :: _others -> first_line
+  | [] -> (Log.fatal "Utls.get_command_output: no output for: %s" cmd; exit 1)
