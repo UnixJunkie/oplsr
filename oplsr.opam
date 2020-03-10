@@ -9,6 +9,8 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
+  "ocaml"
+  "conf-r"
   "dune" {>= "1.0.0"}
   "dolog" {>= "4.0.0"}
   "batteries"
@@ -16,8 +18,17 @@ depends: [
   "cpm" {with-test}
   "molenc"
 ]
-synopsis: "OCaml wrapper for R pls package"
-description: """TODO
+synopsis: "OCaml wrapper for the R 'pls' package"
+description: """
+Some OCaml functions to drive the Partial Least Squares regressor
+from the R 'pls' package.
+This package really fires up and talks to an R interpreter.
+
+Bibliography:
+=============
+Wehrens, R., & Mevik, B. H. (2007).
+The pls package: principal component and partial least squares regression in R.
+https://www.jstatsoft.org/index.php/jss/article/view/v018i02/v18i02.pdf
 """
 # url {
 #   src: "https://github.com/UnixJunkie/oplsr/archive/XXX"
