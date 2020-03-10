@@ -11,7 +11,7 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
   let r_script_fn = Filename.temp_file "oplsr_optim_" ".r" in
   Utls.with_out_file r_script_fn (fun out ->
       fprintf out
-        "library('pls', quietly = TRUE)\n\
+        "library('pls', quietly = TRUE, verbose = FALSE)\n\
          data <- as.matrix(read.table('%s', colClasses = 'numeric', \
                            header = TRUE))\n\
          xs <- data[, 2:%d]\n\
@@ -33,7 +33,7 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
   let r_log_fn = Filename.temp_file "oplsr_optim_" ".log" in
   (* execute it *)
   let cmd =
-    sprintf "R --vanilla --slave < %s 2>&1 > %s" r_script_fn r_log_fn in
+    sprintf "(R --vanilla --slave < %s 2>&1) > %s" r_script_fn r_log_fn in
   if debug then Log.debug "%s" cmd;
   if Sys.command cmd <> 0 then
     failwith ("PLS.optimize: R failure: " ^ cmd)
@@ -54,7 +54,7 @@ let train debug nb_features train_data_csv_fn ncomp_best =
   let r_model_fn = Filename.temp_file "oplsr_train_model_" ".bin" in
   Utls.with_out_file r_script_fn (fun out ->
       fprintf out
-        "library('pls', quietly = TRUE)\n\
+        "library('pls', quietly = TRUE, verbose = FALSE)\n\
          data <- as.matrix(read.table('%s', colClasses = 'numeric',\n\
                            header = TRUE))\n\
          xs <- data[, 2:%d]\n\
@@ -72,7 +72,7 @@ let train debug nb_features train_data_csv_fn ncomp_best =
   let r_log_fn = Filename.temp_file "oplsr_train_" ".log" in
   (* execute it *)
   let cmd =
-    sprintf "R --vanilla --slave < %s 2>&1 > %s" r_script_fn r_log_fn in
+    sprintf "(R --vanilla --slave < %s 2>&1) > %s" r_script_fn r_log_fn in
   if debug then Log.debug "%s" cmd;
   if Sys.command cmd <> 0 then
     failwith ("PLS.train: R failure: " ^ cmd);
@@ -86,7 +86,7 @@ let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
   let r_preds_fn = Filename.temp_file "oplsr_preds_" ".txt" in
   Utls.with_out_file r_script_fn (fun out ->
       fprintf out
-        "library('pls', quietly = TRUE)\n\
+        "library('pls', quietly = TRUE, verbose = FALSE)\n\
          load('%s')\n\
          data <- as.matrix(read.table('%s',\n\
                            colClasses = 'numeric', header = TRUE))\n\
@@ -106,7 +106,7 @@ let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
   let r_log_fn = Filename.temp_file "oplsr_train_" ".log" in
   (* execute it *)
   let cmd =
-    sprintf "R --vanilla --slave < %s 2>&1 > %s" r_script_fn r_log_fn in
+    sprintf "(R --vanilla --slave < %s 2>&1) > %s" r_script_fn r_log_fn in
   if debug then Log.debug "%s" cmd;
   if Sys.command cmd <> 0 then
     failwith ("PLS.predict: R failure: " ^ cmd);
