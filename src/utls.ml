@@ -33,3 +33,12 @@ let lines_of_file fn =
 
 let filter_lines_of_file fn p =
   L.filter p (lines_of_file fn)
+
+(* call f on lines of file *)
+let iter_on_lines_of_file fn f =
+  let input = open_in_bin fn in
+  try
+    while true do
+      f (input_line input)
+    done
+  with End_of_file -> close_in input
