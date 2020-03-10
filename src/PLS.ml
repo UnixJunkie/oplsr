@@ -39,7 +39,7 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
     failwith ("PLS.optimize: R failure: " ^ cmd)
   else
     let last_log_line =
-      Utls.get_command_output (sprintf "tail -1 %s" r_log_fn) in
+      Utls.get_command_output debug (sprintf "tail -1 %s" r_log_fn) in
     let ncomp, r2 =
       try Scanf.sscanf last_log_line "ncomp: %d R2: %f" (fun x y -> (x, y))
       with exn -> (Log.error "cannot parse: %s" last_log_line;

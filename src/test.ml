@@ -5,6 +5,7 @@ module CLI = Minicli.CLI
 module L = BatList
 module Log = Dolog.Log
 module PLS = Oplsr.PLS
+module Utls = Oplsr.Utls
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -15,10 +16,21 @@ let main () =
   let test_fn = CLI.get_string ["--test"] args in
   let nb_features = CLI.get_int ["-n"] args in
   let nfolds = CLI.get_int_def ["--NxCV"] args 5 in
-  let ncomp_best, val_R2 = PLS.optimize verbose nb_features train_fn nfolds in
-  Log.info "ncomp_best: %d trainR2: %f" ncomp_best val_R2;
-  let model_fn = PLS.train verbose nb_features train_fn ncomp_best in
-  let preds = PLS.predict verbose ncomp_best model_fn nb_features test_fn in
+  let opt_dt, (ncomp_best, train_R2) =
+    Utls.wall_clock_time (fun () ->
+        PLS.optimize verbose nb_features train_fn nfolds
+      ) in
+  Log.info "opt_dt: %.1f ncomp_best: %d trainR2: %f" opt_dt ncomp_best train_R2;
+  let train_dt, model_fn =
+    Utls.wall_clock_time (fun () ->
+        PLS.train verbose nb_features train_fn ncomp_best
+      ) in
+  Log.info "train_dt: %.1f" train_dt;
+  let test_dt, preds =
+    Utls.wall_clock_time (fun () ->
+        PLS.predict verbose ncomp_best model_fn nb_features test_fn
+      ) in
+  Log.info "test_dt: %.1f" test_dt;
   let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
   let cmd = sprintf "cut -d' ' -f1 %s > %s" test_fn actual_fn in
   if verbose then Log.info "cmd: %s" cmd;
