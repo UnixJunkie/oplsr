@@ -4,7 +4,7 @@ open Printf
 module Log = Dolog.Log
 
 (* CSV file must have modeled variable as first column, all other columns are
-   features values. CSV file must be in space separated dense format.
+   feature values. CSV file must be in space separated dense format.
    The first line is the CSV header (column numbers are fine). *)
 let optimize debug nb_features train_data_csv_fn nb_folds =
   (* create R script and store it in a temp file *)
