@@ -51,3 +51,27 @@ let get_command_output (cmd: string): string =
   match BatString.split_on_char '\n' output with
   | first_line :: _others -> first_line
   | [] -> (Log.fatal "Utls.get_command_output: no output for: %s" cmd; exit 1)
+
+let fold_on_lines_of_file fn f acc =
+  with_in_file fn (fun input ->
+      let acc' = ref acc in
+      try
+        while true do
+          acc' := f !acc' (input_line input)
+        done;
+        assert(false)
+      with End_of_file -> !acc'
+    )
+
+let float_list_of_file fn =
+  let res =
+    fold_on_lines_of_file fn (fun acc line ->
+        let pred =
+          try Scanf.sscanf line "%f" (fun x -> x)
+          with Scanf.Scan_failure msg ->
+            (* percolate a NaN rather than crashing *)
+            (Log.error "%s: %s" msg line;
+             nan) in
+        pred :: acc
+      ) [] in
+  L.rev res
