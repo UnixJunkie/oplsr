@@ -16,7 +16,6 @@ depends: [
   "batteries"
   "minicli" {with-test & >= "5.0.0"}
   "cpm" {with-test}
-  "molenc" {>= "6.0.0"}
 ]
 synopsis: "OCaml wrapper for the R 'pls' package"
 description: """
