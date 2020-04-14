@@ -47,11 +47,11 @@ let main () =
       ) in
   Log.info "test_dt: %.1f" test_dt;
   let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
-  let cmd = sprintf "cut -d' ' -f1 %s > %s" test_fn actual_fn in
+  (* NR > 1: skip CSV header line *)
+  let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
   if verbose then Log.info "cmd: %s" cmd;
   ignore(Sys.command cmd);
-  (* List.tl: we need to skip the header line from the test file *)
-  let actual = List.tl (Oplsr.Utls.float_list_of_file actual_fn) in
+  let actual = Oplsr.Utls.float_list_of_file actual_fn in
   if not verbose then Sys.remove actual_fn;
   let test_R2 = Cpm.RegrStats.r2 actual preds in
   Log.info "testR2: %f" test_R2
