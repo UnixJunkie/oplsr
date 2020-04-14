@@ -20,12 +20,12 @@
     Its first line is a CSV header (column numbers are fine).
     [nb_folds] is the number of folds of cross validation;
     five or ten is standard for this one. *)
-val Oplsr.PLS.optimize bool -> int -> string -> int -> int * float
+val optimize: bool -> int -> string -> int -> int * float
 
 (** [trained_model_fn = train debug nb_features train_csv_fn nb_comp_opt]
     train a model using the given (optimal) number of components.
     The filename where the model is stored is returned. *)
-val Oplsr.PLS.train bool -> int -> string -> int -> string
+val train: bool -> int -> string -> int -> string
 
 (** [predictions = \
     predict debug nb_comp_opt trained_model_fn nb_features test_csv_fn]
@@ -34,4 +34,4 @@ val Oplsr.PLS.train bool -> int -> string -> int -> string
     the number of features in each data element [nb_features], reading
     data to predict from [test_csv_fn].
     The raw list of predicted values is returned. *)
-val Oplsr.PLS.predict bool -> int -> string -> int -> string -> float list
+val predict: bool -> int -> string -> int -> string -> float list
