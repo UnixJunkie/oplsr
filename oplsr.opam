@@ -14,8 +14,8 @@ depends: [
   "dune" {>= "1.0.0"}
   "dolog" {>= "4.0.0"}
   "batteries"
-  "minicli" {with-test & >= "5.0.0"}
-  "cpm" {with-test}
+  "minicli" {>= "5.0.0"}
+  "cpm"
 ]
 synopsis: "OCaml wrapper for the R 'pls' package"
 description: """
