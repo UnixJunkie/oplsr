@@ -10,12 +10,27 @@ module Utls = Oplsr.Utls
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
-  let _argc, args = CLI.init () in
+  let argc, args = CLI.init () in
+  let show_help = CLI.get_set_bool ["-h";"--help"] args in
+  if argc = 1 || show_help then
+    begin
+      eprintf "usage:\n\
+               %s\n  \
+               [-n <int>]: number of features (in enc. molecules)\n  \
+               [--train <train.txt>]: training set\n  \
+               [--test <test.txt>]: test set\n  \
+               [--NxCV <int>]: number of folds of cross validation\n  \
+               [-v]: verbose/debug mode\n  \
+               [-h|--help]: show this help message\n"
+        Sys.argv.(0);
+      exit 1
+    end;
   let verbose = CLI.get_set_bool ["-v"] args in
   let train_fn = CLI.get_string ["--train"] args in
   let test_fn = CLI.get_string ["--test"] args in
   let nb_features = CLI.get_int ["-n"] args in
   let nfolds = CLI.get_int_def ["--NxCV"] args 5 in
+  CLI.finalize ();
   let opt_dt, (ncomp_best, train_R2) =
     Utls.wall_clock_time (fun () ->
         PLS.optimize verbose nb_features train_fn nfolds
