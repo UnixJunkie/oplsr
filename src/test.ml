@@ -16,7 +16,6 @@ let main () =
     begin
       eprintf "usage:\n\
                %s\n  \
-               [-n <int>]: number of features (in enc. molecules)\n  \
                [--train <train.txt>]: training set\n  \
                [--test <test.txt>]: test set\n  \
                [--NxCV <int>]: number of folds of cross validation\n  \
@@ -28,22 +27,21 @@ let main () =
   let verbose = CLI.get_set_bool ["-v"] args in
   let train_fn = CLI.get_string ["--train"] args in
   let test_fn = CLI.get_string ["--test"] args in
-  let nb_features = CLI.get_int ["-n"] args in
   let nfolds = CLI.get_int_def ["--NxCV"] args 5 in
   CLI.finalize ();
   let opt_dt, (ncomp_best, train_R2) =
     Utls.wall_clock_time (fun () ->
-        PLS.optimize verbose nb_features train_fn nfolds
+        PLS.optimize verbose train_fn nfolds
       ) in
   Log.info "opt_dt: %.1f ncomp_best: %d trainR2: %f" opt_dt ncomp_best train_R2;
   let train_dt, model_fn =
     Utls.wall_clock_time (fun () ->
-        PLS.train verbose nb_features train_fn ncomp_best
+        PLS.train verbose train_fn ncomp_best
       ) in
   Log.info "train_dt: %.1f" train_dt;
   let test_dt, preds =
     Utls.wall_clock_time (fun () ->
-        PLS.predict verbose ncomp_best model_fn nb_features test_fn
+        PLS.predict verbose ncomp_best model_fn test_fn
       ) in
   Log.info "test_dt: %.1f" test_dt;
   let actual_fn = Filename.temp_file "PLS_test_" ".txt" in

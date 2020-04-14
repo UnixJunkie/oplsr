@@ -13,7 +13,7 @@ module Log = Dolog.Log
 (* CSV file must have modeled variable as first column, all other columns are
    feature values. CSV file must be in space separated dense format.
    The first line is the CSV header (column numbers are fine). *)
-let optimize debug nb_features train_data_csv_fn nb_folds =
+let optimize debug train_data_csv_fn nb_folds =
   (* create R script and store it in a temp file *)
   let r_script_fn = Filename.temp_file "oplsr_optim_" ".r" in
   Utls.with_out_file r_script_fn (fun out ->
@@ -21,7 +21,8 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
         "library('pls', quietly = TRUE, verbose = FALSE)\n\
          data <- as.matrix(read.table('%s', colClasses = 'numeric', \
                            header = TRUE))\n\
-         xs <- data[, 2:%d]\n\
+         ncols <- dim(data)[2]\n\
+         xs <- data[, 2:ncols]\n\
          ys <- data[, 1:1]\n\
          train_data <- data.frame(y = ys, x = I(xs))\n\
          model <- plsr(y ~ x, method = 'simpls', data = train_data,\n\
@@ -34,7 +35,6 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
          printf('ncomp: %%d R2: %%f\n', ncomp_best, r2_max)\n\
          quit()\n"
         train_data_csv_fn
-        (nb_features + 1)
         nb_folds
     );
   let r_log_fn = Filename.temp_file "oplsr_optim_" ".log" in
@@ -55,7 +55,7 @@ let optimize debug nb_features train_data_csv_fn nb_folds =
       List.iter Sys.remove [r_script_fn; r_log_fn];
     (ncomp, r2)
 
-let train debug nb_features train_data_csv_fn ncomp_best =
+let train debug train_data_csv_fn ncomp_best =
   (* create R script and store it in a temp file *)
   let r_script_fn = Filename.temp_file "oplsr_train_" ".r" in
   let r_model_fn = Filename.temp_file "oplsr_train_model_" ".bin" in
@@ -64,7 +64,8 @@ let train debug nb_features train_data_csv_fn ncomp_best =
         "library('pls', quietly = TRUE, verbose = FALSE)\n\
          data <- as.matrix(read.table('%s', colClasses = 'numeric',\n\
                            header = TRUE))\n\
-         xs <- data[, 2:%d]\n\
+         ncols <- dim(data)[2]\n\
+         xs <- data[, 2:ncols]\n\
          ys <- data[, 1:1]\n\
          train_data <- data.frame(y = ys, x = I(xs))\n\
          model <- plsr(y ~ x, ncomp = %d, method = 'simpls', \
@@ -72,7 +73,6 @@ let train debug nb_features train_data_csv_fn ncomp_best =
          save(model, file='%s')\n\
          quit()\n"
         train_data_csv_fn
-        (nb_features + 1)
         ncomp_best
         r_model_fn
     );
@@ -87,7 +87,7 @@ let train debug nb_features train_data_csv_fn ncomp_best =
     List.iter Sys.remove [r_script_fn; r_log_fn];
   r_model_fn
 
-let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
+let predict debug ncomp_best trained_model_fn test_data_csv_fn =
   (* create R script and store it in a temp file *)
   let r_script_fn = Filename.temp_file "oplsr_predict_" ".r" in
   let r_preds_fn = Filename.temp_file "oplsr_preds_" ".txt" in
@@ -97,7 +97,8 @@ let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
          load('%s')\n\
          data <- as.matrix(read.table('%s',\n\
                            colClasses = 'numeric', header = TRUE))\n\
-         xs <- data[, 2:%d]\n\
+         ncols <- dim(data)[2]\n\
+         xs <- data[, 2:ncols]\n\
          ys <- data[, 1:1]\n\
          test_data <- data.frame(y = ys, x = I(xs))\n\
          values <- predict(model, ncomp = %d, newdata = test_data)\n\
@@ -106,7 +107,6 @@ let predict debug ncomp_best trained_model_fn nb_features test_data_csv_fn =
          quit()\n"
         trained_model_fn
         test_data_csv_fn
-        (nb_features + 1)
         ncomp_best
         r_preds_fn
     );
