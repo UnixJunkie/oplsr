@@ -1,8 +1,9 @@
 #!/bin/bash
 
-set -x
+set -x # DEBUG
 
 make
 
-_build/default/src/test.exe --train data/solubility_train_std_01.csv \
-                            --test data/solubility_test_std_01.csv -v
+_build/default/src/model.exe -v \
+  --train data/solubility_train_std_01.csv \
+  --test data/solubility_test_std_01.csv
