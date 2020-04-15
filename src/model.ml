@@ -54,7 +54,7 @@ let main () =
   let seed = CLI.get_int_def ["--seed"] args 31415 in
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
-  let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
+  let nfolds = CLI.get_int_def ["--NxCV"] args 5 in
   CLI.finalize ();
   let train_fn, test_fn = match maybe_test_fn with
     | None -> shuffle_then_cut seed train_portion train_fn'
