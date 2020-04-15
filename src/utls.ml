@@ -1,4 +1,6 @@
 
+open Printf
+
 module L = BatList
 module Log = Dolog.Log
 
@@ -30,6 +32,11 @@ let lines_of_file fn =
       if exn <> End_of_file then
         raise exn
       else res
+    )
+
+let lines_to_file fn lines =
+  with_out_file fn (fun out ->
+      L.iter (fprintf out "%s\n") lines
     )
 
 let filter_lines_of_file fn p =
