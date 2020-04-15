@@ -83,3 +83,11 @@ let wall_clock_time f =
   let stop = Unix.gettimeofday () in
   let delta_t = stop -. start in
   (delta_t, res)
+
+let train_test_split p lines =
+  assert(p >= 0.0 && p <= 1.0);
+  let n = float (L.length lines) in
+  let for_training = BatFloat.round_to_int (p *. n) in
+  let train, test = L.takedrop for_training lines in
+  assert(L.length train = for_training);
+  (train, test)
