@@ -5,7 +5,7 @@
  (libraries dolog batteries))
 
 (executable
- (name test)
+ (name model)
  (public_name oplsr_model)
- (modules test)
+ (modules model)
  (libraries dolog minicli cpm batteries oplsr))
