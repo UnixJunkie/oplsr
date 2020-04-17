@@ -98,3 +98,8 @@ let train_test_split p lines =
   let train, test = L.takedrop for_training lines in
   assert(L.length train = for_training);
   (train, test)
+
+(* abort if condition is not met *)
+let enforce (condition: bool) (err_msg: string): unit =
+  if not condition then
+    failwith err_msg
