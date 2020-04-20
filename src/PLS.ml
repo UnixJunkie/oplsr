@@ -14,7 +14,11 @@ module Log = Dolog.Log
    feature values. CSV file must be in space separated dense format.
    The first line is the CSV header (column numbers are fine). *)
 let optimize debug train_data_csv_fn nb_folds =
-  Utls.enforce (nb_folds > 1) "Oplsr.PLS.optimize: nb_folds <= 1";
+  let validation_str =
+    if nb_folds > 1 then
+      sprintf "validation = 'CV', segments = %d" nb_folds
+    else
+      "validation = 'none'" in
   (* create R script and store it in a temp file *)
   let r_script_fn = Filename.temp_file "oplsr_optim_" ".r" in
   Utls.with_out_file r_script_fn (fun out ->
@@ -27,7 +31,7 @@ let optimize debug train_data_csv_fn nb_folds =
          ys <- data[, 1:1]\n\
          train_data <- data.frame(y = ys, x = I(xs))\n\
          model <- plsr(y ~ x, method = 'simpls', data = train_data,\n\
-                       validation = 'CV', segments = %d)\n\
+                       %s)\n\
          r2 <- R2(model)\n\
          r2s <- unlist(r2[1])\n\
          ncomp_best <- which.max(r2s)\n\
@@ -36,7 +40,7 @@ let optimize debug train_data_csv_fn nb_folds =
          printf('ncomp: %%d R2: %%f\n', ncomp_best, r2_max)\n\
          quit()\n"
         train_data_csv_fn
-        nb_folds
+        validation_str
     );
   let r_log_fn = Filename.temp_file "oplsr_optim_" ".log" in
   (* execute it *)
