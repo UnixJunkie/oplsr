@@ -32,6 +32,7 @@ let shuffle_then_cut seed p train_fn =
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
+  Log.info "start";
   let argc, args = CLI.init () in
   let train_portion_def = 0.8 in
   let show_help = CLI.get_set_bool ["-h";"--help"] args in
@@ -59,26 +60,14 @@ let main () =
   let train_fn, test_fn = match maybe_test_fn with
     | None -> shuffle_then_cut seed train_portion train_fn'
     | Some test_fn' -> train_fn', test_fn' in
-  let opt_dt, (ncomp_best, train_R2) =
-    Utls.wall_clock_time (fun () ->
-        PLS.optimize verbose train_fn nfolds
-      ) in
-  Log.info "opt_dt: %.1f ncomp_best: %d trainR2: %f" opt_dt ncomp_best train_R2;
-  let train_dt, model_fn =
-    Utls.wall_clock_time (fun () ->
-        PLS.train verbose train_fn ncomp_best
-      ) in
-  Log.info "train_dt: %.1f" train_dt;
-  let test_dt, preds =
-    Utls.wall_clock_time (fun () ->
-        PLS.predict verbose ncomp_best model_fn test_fn
-      ) in
-  Log.info "test_dt: %.1f" test_dt;
+  let ncomp_best, train_R2 = PLS.optimize verbose train_fn nfolds in
+  Log.info "ncomp_best: %d trainR2: %f" ncomp_best train_R2;
+  let model_fn = PLS.train verbose train_fn ncomp_best in
+  let preds = PLS.predict verbose ncomp_best model_fn test_fn in
   let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
   (* NR > 1: skip CSV header line *)
   let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
-  if verbose then Log.info "cmd: %s" cmd;
-  ignore(Sys.command cmd);
+  Utls.run_command verbose cmd;
   let actual = Oplsr.Utls.float_list_of_file actual_fn in
   if not verbose then Sys.remove actual_fn;
   let test_R2 = Cpm.RegrStats.r2 actual preds in
