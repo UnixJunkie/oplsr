@@ -41,8 +41,8 @@ let shuffle_then_nfolds seed n train_fn =
     let train_tests = Utls.cv_folds n rand_lines in
     L.rev_map (fun (x, y) -> train_test_dump csv_header x y) train_tests
 
-let train_test verbose train_fn test_fn =
-  let ncomp_best, train_R2 = PLS.optimize verbose train_fn 1 in
+let train_test verbose nfolds train_fn test_fn =
+  let ncomp_best, train_R2 = PLS.optimize verbose train_fn nfolds in
   Log.info "ncomp_best: %d trainR2: %f" ncomp_best train_R2;
   let model_fn = PLS.train verbose train_fn ncomp_best in
   let preds = PLS.predict verbose ncomp_best model_fn test_fn in
@@ -53,6 +53,15 @@ let train_test verbose train_fn test_fn =
   let actual = Oplsr.Utls.float_list_of_file actual_fn in
   if not verbose then Sys.remove actual_fn;
   (actual, preds)
+
+(* FBR: implement --save and --load *)
+
+(* FBR: extract the number of features from the CSV header *)
+
+let csv_nb_features csv_fn =
+  match Utls.unix_head 1 csv_fn with
+  | [csv_header] -> BatString.count_char csv_header ' '
+  | _ -> assert(false)
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -69,6 +78,7 @@ let main () =
                [-p <float>]: train portion; default=%f\n  \
                [--seed <int>]: RNG seed\n  \
                [--test <test.txt>]: test set\n  \
+               [-np <int>]: max CPU cores\n  \
                [--NxCV <int>]: number of folds of cross validation\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
@@ -79,19 +89,23 @@ let main () =
   let train_fn' = CLI.get_string ["--train"] args in
   let seed = CLI.get_int_def ["--seed"] args 31415 in
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
+  let ncores = CLI.get_int_def ["-np"] args 1 in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
   let actual, preds =
-    if nfolds <= 1 then
+    if train_portion = 1.0 || nfolds <= 1 then
+      (* (p = 1.0 && nfolds > 1) --> we use R pls NxCV mechanism
+         to train the model without overfiting to the data *)
       let train_fn, test_fn = match maybe_test_fn with
         | None -> shuffle_then_cut seed train_portion train_fn'
-        | Some test_fn' -> train_fn', test_fn' in
-      train_test verbose train_fn test_fn
-    else (* nfolds > 1 *)
+        | Some test_fn' -> (train_fn', test_fn') in
+      train_test verbose nfolds train_fn test_fn
+    else
       let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
       let actual_pred_pairs =
-        L.map (fun (x, y) -> train_test verbose x y) train_test_fns in
+        (* we disable R pls NxCV here *)
+        Parany.Parmap.parmap ~ncores (fun (x, y) -> train_test verbose 1 x y) train_test_fns in
       let xs, ys = L.split actual_pred_pairs in
       (L.concat xs, L.concat ys) in
   let test_R2 = Cpm.RegrStats.r2 actual preds in

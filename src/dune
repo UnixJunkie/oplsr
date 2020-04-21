@@ -8,4 +8,4 @@
  (name model)
  (public_name oplsr_model)
  (modules model)
- (libraries dolog minicli cpm batteries oplsr))
+ (libraries dolog minicli cpm batteries oplsr parany))
