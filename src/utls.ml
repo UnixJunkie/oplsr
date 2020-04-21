@@ -107,3 +107,31 @@ let train_test_split p lines =
 let enforce (condition: bool) (err_msg: string): unit =
   if not condition then
     failwith err_msg
+
+(* split a list into n parts (the last part might have
+   a different number of elements) *)
+let list_nparts n l =
+  let len = L.length l in
+  let res = ref [] in
+  let curr = ref l in
+  let m = int_of_float (BatFloat.ceil (float len /. float n)) in
+  for _ = 1 to n - 1 do
+    let xs, ys = L.takedrop m !curr in
+    curr := ys;
+    res := xs :: !res
+  done;
+  L.rev (!curr :: !res)
+
+(* create folds of cross validation; each fold consists in (train, test) *)
+let cv_folds n l =
+  let test_sets = list_nparts n l in
+  let rec loop acc prev curr =
+    match curr with
+    | [] -> acc
+    | x :: xs ->
+      let before_after = L.flatten (L.rev_append prev xs) in
+      let prev' = x :: prev in
+      let train_test = (before_after, x) in
+      let acc' = train_test :: acc in
+      loop acc' prev' xs in
+  loop [] [] test_sets
