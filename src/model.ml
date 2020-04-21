@@ -41,6 +41,19 @@ let shuffle_then_nfolds seed n train_fn =
     let train_tests = Utls.cv_folds n rand_lines in
     L.rev_map (fun (x, y) -> train_test_dump csv_header x y) train_tests
 
+let train_test verbose train_fn test_fn =
+  let ncomp_best, train_R2 = PLS.optimize verbose train_fn 1 in
+  Log.info "ncomp_best: %d trainR2: %f" ncomp_best train_R2;
+  let model_fn = PLS.train verbose train_fn ncomp_best in
+  let preds = PLS.predict verbose ncomp_best model_fn test_fn in
+  let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
+  (* NR > 1: skip CSV header line *)
+  let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
+  Utls.run_command verbose cmd;
+  let actual = Oplsr.Utls.float_list_of_file actual_fn in
+  if not verbose then Sys.remove actual_fn;
+  (actual, preds)
+
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
@@ -69,27 +82,19 @@ let main () =
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
-  if nfolds <= 1 then
-    begin
+  let actual, preds =
+    if nfolds <= 1 then
       let train_fn, test_fn = match maybe_test_fn with
         | None -> shuffle_then_cut seed train_portion train_fn'
         | Some test_fn' -> train_fn', test_fn' in
-      let ncomp_best, train_R2 = PLS.optimize verbose train_fn nfolds in
-      Log.info "ncomp_best: %d trainR2: %f" ncomp_best train_R2;
-      let model_fn = PLS.train verbose train_fn ncomp_best in
-      let preds = PLS.predict verbose ncomp_best model_fn test_fn in
-      let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
-      (* NR > 1: skip CSV header line *)
-      let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
-      Utls.run_command verbose cmd;
-      let actual = Oplsr.Utls.float_list_of_file actual_fn in
-      if not verbose then Sys.remove actual_fn;
-      let test_R2 = Cpm.RegrStats.r2 actual preds in
-      Log.info "testR2: %f" test_R2
-    end
-  else (* nfolds > 1 *)
-    begin
-      failwith "not implemented yet"
-    end
+      train_test verbose train_fn test_fn
+    else (* nfolds > 1 *)
+      let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
+      let actual_pred_pairs =
+        L.map (fun (x, y) -> train_test verbose x y) train_test_fns in
+      let xs, ys = L.split actual_pred_pairs in
+      (L.concat xs, L.concat ys) in
+  let test_R2 = Cpm.RegrStats.r2 actual preds in
+  Log.info "testR2: %f" test_R2
 
 let () = main ()
