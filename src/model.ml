@@ -51,7 +51,12 @@ let train_test verbose maybe_ncomp nfolds train_fn test_fn =
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
   let ncomp_best = match maybe_ncomp with
-    | Some ncomp -> (assert(ncomp < nb_features); ncomp)
+    | Some ncomp ->
+      begin
+        Log.info "ncomp: %d/%d" ncomp nb_features;
+        assert(ncomp < nb_features);
+        ncomp
+      end
     | None ->
       let ncomp_best, train_R2 = PLS.optimize verbose train_fn nfolds in
       Log.info "ncomp_best: %d/%d trainR2: %f" ncomp_best nb_features train_R2;
