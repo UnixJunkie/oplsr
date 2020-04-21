@@ -77,8 +77,6 @@ let train_test verbose maybe_model_fn maybe_ncomp nfolds train_fn test_fn =
      L.iter Sys.remove [actual_fn; model_fn]);
   (actual, preds)
 
-(* FBR: implement --load *)
-
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
@@ -98,6 +96,7 @@ let main () =
                [-np <int>]: max CPU cores\n  \
                [--NxCV <int>]: number of folds of cross validation\n  \
                [-s|--save <filename>]: save model to file\n  \
+               [-l|--load <filename>]: restore model from file\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -109,10 +108,16 @@ let main () =
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
-  let maybe_model_fn = CLI.get_string_opt ["-s";"--save"] args in
+  let maybe_save_model_fn = CLI.get_string_opt ["-s";"--save"] args in
+  let maybe_load_model_fn = CLI.get_string_opt ["-l";"--load"] args in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
+  (match maybe_save_model_fn, maybe_load_model_fn with
+   | None, None -> () (* no save, no restore *)
+   | Some _, None -> () (* save only *)
+   | None, Some _ -> () (* restore only *)
+   | Some _, Some _ -> failwith "Model: -s AND -l provided");
   let actual, preds =
     if train_portion = 1.0 || nfolds <= 1 then
       (* (p = 1.0 && nfolds > 1) --> we use R pls NxCV mechanism
@@ -120,7 +125,7 @@ let main () =
       let train_fn, test_fn = match maybe_test_fn with
         | None -> shuffle_then_cut seed train_portion train_fn'
         | Some test_fn' -> (train_fn', test_fn') in
-      train_test verbose maybe_model_fn maybe_ncomp nfolds train_fn test_fn
+      train_test verbose maybe_save_model_fn maybe_ncomp nfolds train_fn test_fn
     else
       let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
       let actual_pred_pairs =
