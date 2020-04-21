@@ -135,3 +135,13 @@ let cv_folds n l =
       let acc' = train_test :: acc in
       loop acc' prev' xs in
   loop [] [] test_sets
+
+(* like the head command *)
+let unix_head n fn =
+  let res = ref [] in
+  with_in_file fn (fun input ->
+      for _i = 1 to n do
+        res := (input_line input) :: !res
+      done
+    );
+  L.rev !res
