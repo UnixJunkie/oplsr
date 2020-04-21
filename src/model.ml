@@ -46,7 +46,7 @@ let csv_nb_features csv_fn =
   | [csv_header] -> BatString.count_char csv_header ' '
   | _ -> assert(false)
 
-let train_test verbose maybe_ncomp nfolds train_fn test_fn =
+let train_test verbose maybe_model_fn maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
@@ -62,16 +62,22 @@ let train_test verbose maybe_ncomp nfolds train_fn test_fn =
       Log.info "ncomp_best: %d/%d trainR2: %f" ncomp_best nb_features train_R2;
       ncomp_best in
   let model_fn = PLS.train verbose train_fn ncomp_best in
+  (match maybe_model_fn with
+   | None -> ()
+   | Some fn ->
+     (* copy model to user-given filename *)
+     Utls.run_command true (sprintf "cp %s %s" model_fn fn));
   let preds = PLS.predict verbose ncomp_best model_fn test_fn in
   let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
   (* NR > 1: skip CSV header line *)
   let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
   Utls.run_command verbose cmd;
   let actual = Oplsr.Utls.float_list_of_file actual_fn in
-  if not verbose then Sys.remove actual_fn;
+  (if not verbose then
+     L.iter Sys.remove [actual_fn; model_fn]);
   (actual, preds)
 
-(* FBR: implement --save and --load *)
+(* FBR: implement --load *)
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -91,6 +97,7 @@ let main () =
                [--ncomp <int>]: optimal number of PLS components\n  \
                [-np <int>]: max CPU cores\n  \
                [--NxCV <int>]: number of folds of cross validation\n  \
+               [-s|--save <filename>]: save model to file\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -102,6 +109,7 @@ let main () =
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
+  let maybe_model_fn = CLI.get_string_opt ["-s";"--save"] args in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
@@ -112,13 +120,14 @@ let main () =
       let train_fn, test_fn = match maybe_test_fn with
         | None -> shuffle_then_cut seed train_portion train_fn'
         | Some test_fn' -> (train_fn', test_fn') in
-      train_test verbose maybe_ncomp nfolds train_fn test_fn
+      train_test verbose maybe_model_fn maybe_ncomp nfolds train_fn test_fn
     else
       let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
       let actual_pred_pairs =
-        (* we disable R pls NxCV here *)
         Parany.Parmap.parmap ~ncores (fun (x, y) ->
-            train_test verbose maybe_ncomp 1 x y
+            (* we disable R pls NxCV here.
+               Also, we don't save the model since several are build in // *)
+            train_test verbose None maybe_ncomp 1 x y
           ) train_test_fns in
       let xs, ys = L.split actual_pred_pairs in
       (L.concat xs, L.concat ys) in
