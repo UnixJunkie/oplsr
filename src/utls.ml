@@ -59,6 +59,10 @@ let get_command_output (verbose: bool) (cmd: string): string =
   | first_line :: _others -> first_line
   | [] -> (Log.fatal "Utls.get_command_output: no output for: %s" cmd; exit 1)
 
+let run_command verbose cmd =
+  if verbose then Log.info "cmd: %s" cmd;
+  ignore(Sys.command cmd)
+
 let fold_on_lines_of_file fn f acc =
   with_in_file fn (fun input ->
       let acc' = ref acc in
