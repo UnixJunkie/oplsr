@@ -16,18 +16,30 @@ module Log = Dolog.Log
 module PLS = Oplsr.PLS
 module Utls = Oplsr.Utls
 
+let train_test_dump csv_header train test =
+  let train_fn = Filename.temp_file "oplsr_train_" ".csv" in
+  let test_fn = Filename.temp_file "oplsr_test_" ".csv" in
+  Utls.lines_to_file train_fn (csv_header :: train);
+  Utls.lines_to_file test_fn (csv_header :: test);
+  (train_fn, test_fn)
+
 let shuffle_then_cut seed p train_fn =
   match Utls.lines_of_file train_fn with
   | [] | [_] -> assert(false) (* no lines or header line only?! *)
   | (csv_header :: csv_payload) ->
-    let state = BatRandom.State.make [|seed|] in
-    let rand_lines = L.shuffle ~state csv_payload in
+    let rng = BatRandom.State.make [|seed|] in
+    let rand_lines = L.shuffle ~state:rng csv_payload in
     let train, test = Utls.train_test_split p rand_lines in
-    let train_fn = Filename.temp_file "oplsr_train_" ".csv" in
-    let test_fn = Filename.temp_file "oplsr_test_" ".csv" in
-    Utls.lines_to_file train_fn (csv_header :: train);
-    Utls.lines_to_file test_fn (csv_header :: test);
-    (train_fn, test_fn)
+    train_test_dump csv_header train test
+
+let shuffle_then_nfolds seed n train_fn =
+  match Utls.lines_of_file train_fn with
+  | [] | [_] -> assert(false) (* no lines or header line only?! *)
+  | (csv_header :: csv_payload) ->
+    let rng = BatRandom.State.make [|seed|] in
+    let rand_lines = L.shuffle ~state:rng csv_payload in
+    let train_tests = Utls.cv_folds n rand_lines in
+    L.rev_map (fun (x, y) -> train_test_dump csv_header x y) train_tests
 
 let main () =
   Log.(set_log_level DEBUG);
