@@ -34,3 +34,10 @@ val train: bool -> string -> int -> string
     data to predict from [test_csv_fn].
     The raw list of predicted values is returned. *)
 val predict: bool -> int -> string -> string -> float list
+
+(** [predict_to_file debug nb_comp_opt trained_model_fn test_csv_fn output_fn]
+    predict using a trained model stored in [trained_model_fn],
+    given the optimal number of components [nb_comp_opt], reading
+    data to predict from [test_csv_fn] and writing predictions to
+    [output_fn]. *)
+val predict_to_file: bool -> int -> string -> string -> string -> unit

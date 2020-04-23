@@ -92,10 +92,10 @@ let train debug train_data_csv_fn ncomp_best =
     List.iter Sys.remove [r_script_fn; r_log_fn];
   r_model_fn
 
-let predict debug ncomp_best trained_model_fn test_data_csv_fn =
+let predict_to_file debug ncomp_best trained_model_fn test_data_csv_fn
+    out_preds_fn =
   (* create R script and store it in a temp file *)
   let r_script_fn = Filename.temp_file "oplsr_predict_" ".r" in
-  let r_preds_fn = Filename.temp_file "oplsr_preds_" ".txt" in
   Utls.with_out_file r_script_fn (fun out ->
       fprintf out
         "library('pls', quietly = TRUE, verbose = FALSE)\n\
@@ -113,7 +113,7 @@ let predict debug ncomp_best trained_model_fn test_data_csv_fn =
         trained_model_fn
         test_data_csv_fn
         ncomp_best
-        r_preds_fn
+        out_preds_fn
     );
   let r_log_fn = Filename.temp_file "oplsr_train_" ".log" in
   (* execute it *)
@@ -122,7 +122,13 @@ let predict debug ncomp_best trained_model_fn test_data_csv_fn =
   if debug then Log.debug "%s" cmd;
   if Sys.command cmd <> 0 then
     failwith ("PLS.predict: R failure: " ^ cmd);
-  let preds = Utls.float_list_of_file r_preds_fn in
   if not debug then
-    List.iter Sys.remove [r_script_fn; r_log_fn; r_preds_fn];
+    List.iter Sys.remove [r_script_fn; r_log_fn]
+
+let predict debug ncomp_best trained_model_fn test_data_csv_fn =
+  let out_preds_fn = Filename.temp_file "oplsr_preds_" ".txt" in
+  predict_to_file debug ncomp_best trained_model_fn test_data_csv_fn
+    out_preds_fn;
+  let preds = Utls.float_list_of_file out_preds_fn in
+  (if not debug then Sys.remove out_preds_fn);
   preds
