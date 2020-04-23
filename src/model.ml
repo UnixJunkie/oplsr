@@ -97,6 +97,15 @@ let predict verbose maybe_ncomp maybe_model_fn test_fn =
     | Some model_fn ->
       PLS.predict verbose ncomp_best model_fn test_fn
 
+let predict_to_file verbose maybe_ncomp maybe_model_fn test_fn out_fn =
+  match maybe_ncomp with
+  | None -> failwith "Model.predict_to_file: --ncomp is required"
+  | Some ncomp_best ->
+    match maybe_model_fn with
+    | None -> failwith "Model.predict_to_file: --load is required"
+    | Some model_fn ->
+      PLS.predict_to_file verbose ncomp_best model_fn test_fn out_fn
+
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
@@ -117,6 +126,7 @@ let main () =
                [--NxCV <int>]: number of folds of cross validation\n  \
                [-s|--save <filename>]: save model to file\n  \
                [-l|--load <filename>]: restore model from file\n  \
+               [-o <filename>]: predictions output file\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -134,6 +144,7 @@ let main () =
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
   let maybe_save_model_fn = CLI.get_string_opt ["-s";"--save"] args in
   let maybe_load_model_fn = CLI.get_string_opt ["-l";"--load"] args in
+  let output_fn = CLI.get_string_def ["-o"] args "/dev/stdout" in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
@@ -148,14 +159,17 @@ let main () =
          to train the model without overfiting to the data *)
       begin match maybe_train_fn, maybe_test_fn with
       | (None, None) -> failwith "Model: neither --train nor --test"
-      | (Some train_fn', None) ->
+      | (Some train_fn', None) -> (* only training set *)
         let train_fn, test_fn = shuffle_then_cut seed train_portion train_fn' in
         train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
-      | (Some train_fn, Some test_fn) ->
+      | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
         train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
-      | (None, Some test_fn) ->
-        (extract_values verbose test_fn,
-         predict verbose maybe_ncomp maybe_load_model_fn test_fn)
+      | (None, Some test_fn) -> (* only test set *)
+        let act = extract_values verbose test_fn in
+        predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
+          output_fn;
+        let pred = Utls.float_list_of_file output_fn in
+        (act, pred)
       end
     else
       begin match maybe_train_fn, maybe_test_fn with
