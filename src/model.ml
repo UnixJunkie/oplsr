@@ -50,6 +50,16 @@ type mode = Load of string
           | Save of string
           | Discard
 
+let extract_values verbose fn =
+  let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
+  (* NR > 1: skip CSV header line *)
+  let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" fn actual_fn in
+  Utls.run_command verbose cmd;
+  let actual = Oplsr.Utls.float_list_of_file actual_fn in
+  (* filesystem cleanup *)
+  (if not verbose then Sys.remove actual_fn);
+  actual
+
 let train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
@@ -72,16 +82,20 @@ let train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn =
    | Discard | Load _ -> ()
    | Save fn -> (* copy model *)
      Utls.run_command true (sprintf "cp %s %s" model_fn fn));
+  let actual = extract_values verbose test_fn in
   let preds = PLS.predict verbose ncomp_best model_fn test_fn in
-  let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
-  (* NR > 1: skip CSV header line *)
-  let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" test_fn actual_fn in
-  Utls.run_command verbose cmd;
-  let actual = Oplsr.Utls.float_list_of_file actual_fn in
   (* filesystem cleanup *)
-  (if not verbose then Sys.remove actual_fn);
   (if save_or_load = Discard then Sys.remove model_fn);
   (actual, preds)
+
+let predict verbose maybe_ncomp maybe_model_fn test_fn =
+  match maybe_ncomp with
+  | None -> failwith "Model.predict: --ncomp is required"
+  | Some ncomp_best ->
+    match maybe_model_fn with
+    | None -> failwith "Model.predict: --load is required"
+    | Some model_fn ->
+      PLS.predict verbose ncomp_best model_fn test_fn
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -94,7 +108,7 @@ let main () =
     begin
       eprintf "usage:\n\
                %s\n  \
-               --train <train.txt>: training set\n  \
+               [--train <train.txt>]: training set\n  \
                [-p <float>]: train portion; default=%f\n  \
                [--seed <int>]: RNG seed\n  \
                [--test <test.txt>]: test set\n  \
@@ -108,13 +122,13 @@ let main () =
         Sys.argv.(0) train_portion_def;
       exit 1
     end;
-  let verbose = CLI.get_set_bool ["-v"] args in
-  let train_fn' = CLI.get_string ["--train"] args in
   let seed = match CLI.get_int_opt ["--seed"] args with
-    | Some i -> i (* perfect reproducibility *)
+    | Some s -> s (* perfect reproducibility *)
     | None -> (* some randomness *)
       let () = Random.self_init () in
       Random.int 0x3FFFFFFF (* 0x3FFFFFFF = 2^30 - 1 *) in
+  let verbose = CLI.get_set_bool ["-v"] args in
+  let maybe_train_fn = CLI.get_string_opt ["--train"] args in
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
@@ -132,20 +146,35 @@ let main () =
     if train_portion = 1.0 || nfolds <= 1 then
       (* (p = 1.0 && nfolds > 1) --> we use R pls NxCV mechanism
          to train the model without overfiting to the data *)
-      let train_fn, test_fn = match maybe_test_fn with
-        | None -> shuffle_then_cut seed train_portion train_fn'
-        | Some test_fn' -> (train_fn', test_fn') in
-      train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
+      begin match maybe_train_fn, maybe_test_fn with
+      | (None, None) -> failwith "Model: neither --train nor --test"
+      | (Some train_fn', None) ->
+        let train_fn, test_fn = shuffle_then_cut seed train_portion train_fn' in
+        train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
+      | (Some train_fn, Some test_fn) ->
+        train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
+      | (None, Some test_fn) ->
+        (extract_values verbose test_fn,
+         predict verbose maybe_ncomp maybe_load_model_fn test_fn)
+      end
     else
-      let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
-      let actual_pred_pairs =
-        Parany.Parmap.parmap ~ncores (fun (x, y) ->
-            (* we disable R pls NxCV here.
-               Also, we don't save the model since several are build in // *)
-            train_test verbose Discard maybe_ncomp 1 x y
-          ) train_test_fns in
-      let xs, ys = L.split actual_pred_pairs in
-      (L.concat xs, L.concat ys) in
+      begin match maybe_train_fn, maybe_test_fn with
+      | (None, None) -> failwith "Model: neither --train nor --test"
+      | (Some train_fn', None) ->
+        let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
+        let actual_pred_pairs =
+          Parany.Parmap.parmap ~ncores (fun (x, y) ->
+              (* we disable R pls NxCV here.
+                 Also, we don't save the model since several are build in // *)
+              train_test verbose Discard maybe_ncomp 1 x y
+            ) train_test_fns in
+        let xs, ys = L.split actual_pred_pairs in
+        (L.concat xs, L.concat ys)
+      | (Some _train_fn, Some _test_fn) ->
+        failwith "Model: nfolds > 1 && --train && --test"
+      | (None, Some _test_fn) ->
+        failwith "Model: nfolds > 1 && --test only"
+      end in
   let test_R2 = Cpm.RegrStats.r2 actual preds in
   Log.info "testR2: %f" test_R2
 
