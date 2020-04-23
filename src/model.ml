@@ -110,7 +110,11 @@ let main () =
     end;
   let verbose = CLI.get_set_bool ["-v"] args in
   let train_fn' = CLI.get_string ["--train"] args in
-  let seed = CLI.get_int_def ["--seed"] args 31415 in
+  let seed = match CLI.get_int_opt ["--seed"] args with
+    | Some i -> i (* perfect reproducibility *)
+    | None -> (* some randomness *)
+      let () = Random.self_init () in
+      Random.int 0x3FFFFFFF (* 0x3FFFFFFF = 2^30 - 1 *) in
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
