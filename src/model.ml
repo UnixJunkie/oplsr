@@ -144,7 +144,13 @@ let main () =
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
   let maybe_save_model_fn = CLI.get_string_opt ["-s";"--save"] args in
   let maybe_load_model_fn = CLI.get_string_opt ["-l";"--load"] args in
-  let output_fn = CLI.get_string_def ["-o"] args "/dev/stdout" in
+  let output_fn = match CLI.get_string_opt ["-o"] args with
+    | Some fn -> (Utls.enforce (fn <> "/dev/stdout")
+                    "Model: -o: /dev/stdout not supported";
+                  (* because: we need to read back the whole file after
+                     having created it *)
+                  fn)
+    | None -> Filename.temp_file "oplsr_model_" ".txt" in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   CLI.finalize ();
