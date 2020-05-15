@@ -15,6 +15,7 @@ depends: [
   "dolog" {>= "4.0.0"}
   "batteries"
   "minicli" {>= "5.0.0"}
+  "parany" {>= "11.0.0"}
   "cpm"
 ]
 synopsis: "OCaml wrapper for the R 'pls' package"
