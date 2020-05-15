@@ -183,7 +183,7 @@ let main () =
       | (Some train_fn', None) ->
         let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
         let actual_pred_pairs =
-          Parany.Parmap.parmap ~ncores (fun (x, y) ->
+          Parany.Parmap.parmap ncores (fun (x, y) ->
               (* we disable R pls NxCV here.
                  Also, we don't save the model since several are build in // *)
               train_test verbose Discard maybe_ncomp 1 x y
