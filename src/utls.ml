@@ -145,3 +145,8 @@ let unix_head n fn =
       done
     );
   L.rev !res
+
+let string_list_to_file fn l =
+  with_out_file fn (fun out ->
+      L.iter (fprintf out "%s\n") l
+    )
