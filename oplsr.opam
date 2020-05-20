@@ -17,6 +17,7 @@ depends: [
   "minicli" {>= "5.0.0"}
   "parany" {>= "11.0.0"}
   "cpm"
+  "conf-gnuplot"
 ]
 synopsis: "OCaml wrapper for the R 'pls' package"
 description: """
