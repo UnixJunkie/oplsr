@@ -7,5 +7,5 @@
 (executable
  (name model)
  (public_name oplsr_model)
- (modules model)
+ (modules model gnuplot)
  (libraries dolog minicli cpm batteries oplsr parany))
