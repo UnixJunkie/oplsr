@@ -127,6 +127,7 @@ let main () =
                [-s|--save <filename>]: save model to file\n  \
                [-l|--load <filename>]: restore model from file\n  \
                [-o <filename>]: predictions output file\n  \
+               [--no-plot]: don't call gnuplot\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -153,6 +154,7 @@ let main () =
     | None -> Filename.temp_file "oplsr_model_" ".txt" in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
+  let no_plot = CLI.get_set_bool ["--no-plot"] args in
   CLI.finalize ();
   let save_or_load = match maybe_save_model_fn, maybe_load_model_fn with
     | None, None -> Discard
@@ -196,6 +198,7 @@ let main () =
         failwith "Model: nfolds > 1 && --test only"
       end in
   let test_R2 = Cpm.RegrStats.r2 actual preds in
+  (if not no_plot then Gnuplot.regr_plot "PLS model fit" actual preds);
   Log.info "testR2: %f" test_R2
 
 let () = main ()
