@@ -67,8 +67,11 @@ let train_test verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
   let ncomp_best = match maybe_ncomp with
     | Some ncomp ->
       begin
-        Log.info "ncomp: %d/%d" ncomp nb_features;
-        assert(ncomp < nb_features);
+        (* ncomp = nb_features <-> the dataset was re-encoded to have only
+         * the necessary features for the PLS model *)
+        (if ncomp = nb_features then Log.warn else Log.info)
+          "ncomp: %d/%d" ncomp nb_features;
+        assert(ncomp <= nb_features);
         ncomp
       end
     | None ->
