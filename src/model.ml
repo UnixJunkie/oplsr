@@ -60,7 +60,7 @@ let extract_values verbose fn =
   (if not verbose then Sys.remove actual_fn);
   actual
 
-let train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn =
+let train_test verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
@@ -72,7 +72,7 @@ let train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn =
         ncomp
       end
     | None ->
-      let ncomp_best, train_R2 = PLS.optimize verbose train_fn nfolds in
+      let ncomp_best, train_R2 = PLS.optimize verbose nprocs train_fn nfolds in
       Log.info "ncomp_best: %d/%d trainR2: %f" ncomp_best nb_features train_R2;
       ncomp_best in
   let model_fn = match save_or_load with
@@ -169,9 +169,11 @@ let main () =
       | (None, None) -> failwith "Model: neither --train nor --test"
       | (Some train_fn', None) -> (* only training set *)
         let train_fn, test_fn = shuffle_then_cut seed train_portion train_fn' in
-        train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
+        train_test
+          verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
       | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
-        train_test verbose save_or_load maybe_ncomp nfolds train_fn test_fn
+        train_test
+          verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
       | (None, Some test_fn) -> (* only test set *)
         let act = extract_values verbose test_fn in
         predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
@@ -188,7 +190,7 @@ let main () =
           Parany.Parmap.parmap ncores (fun (x, y) ->
               (* we disable R pls NxCV here.
                  Also, we don't save the model since several are build in // *)
-              train_test verbose Discard maybe_ncomp 1 x y
+              train_test verbose 1 Discard maybe_ncomp 1 x y
             ) train_test_fns in
         let xs, ys = L.split actual_pred_pairs in
         (L.concat xs, L.concat ys)

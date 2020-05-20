@@ -13,7 +13,7 @@ module Log = Dolog.Log
 (* CSV file must have modeled variable as first column, all other columns are
    feature values. CSV file must be in space separated dense format.
    The first line is the CSV header (column numbers are fine). *)
-let optimize debug train_data_csv_fn nb_folds =
+let optimize debug nprocs train_data_csv_fn nb_folds =
   let validation_str =
     if nb_folds > 1 then
       sprintf "validation = 'CV', segments = %d" nb_folds
@@ -24,6 +24,7 @@ let optimize debug train_data_csv_fn nb_folds =
   Utls.with_out_file r_script_fn (fun out ->
       fprintf out
         "library('pls', quietly = TRUE, verbose = FALSE)\n\
+         pls.options(parallel = %d)\n\
          data <- as.matrix(read.table('%s', colClasses = 'numeric', \
                            header = TRUE))\n\
          ncols <- dim(data)[2]\n\
@@ -39,6 +40,7 @@ let optimize debug train_data_csv_fn nb_folds =
          printf <- function(...) cat(sprintf(...))\n\
          printf('ncomp: %%d R2: %%f\n', ncomp_best, r2_max)\n\
          quit()\n"
+        nprocs
         train_data_csv_fn
         validation_str
     );
