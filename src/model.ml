@@ -198,7 +198,10 @@ let main () =
         failwith "Model: nfolds > 1 && --test only"
       end in
   let test_R2 = Cpm.RegrStats.r2 actual preds in
-  (if not no_plot then Gnuplot.regr_plot "PLS model fit" actual preds);
+  (if not no_plot then
+     let title = sprintf "PLS model fit; R2=%.2f" test_R2 in
+     Gnuplot.regr_plot title actual preds
+  );
   Log.info "testR2: %f" test_R2
 
 let () = main ()
