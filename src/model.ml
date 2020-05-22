@@ -151,8 +151,11 @@ let minimize debug trained_model_fn ncomp_best train_data_csv_fn test_data_csv_f
     let smaller_test_csv_fn = Fn.temp_file "oplsr_test_" ".csv" in
     Utls.matrix_to_csv_file smaller_train_csv_fn train_data to_drop;
     Utls.matrix_to_csv_file smaller_test_csv_fn test_data to_drop;
+    Log.info "created %s" smaller_train_csv_fn;
+    Log.info "created %s" smaller_test_csv_fn;
     let model_fn = PLS.train debug smaller_train_csv_fn ncomp_best in
     let curr_r2 = train_test_r2 debug model_fn ncomp_best smaller_train_csv_fn in
+    (if not debug then L.iter Sys.remove [smaller_train_csv_fn; smaller_test_csv_fn]);
     Log.info "minimize: dropped %d: R2: %f" n curr_r2;
     if curr_r2 >= prev_r2 then loop curr_r2 (n + 1) else ()
   in
@@ -183,6 +186,7 @@ let main () =
                [--no-plot]: don't call gnuplot\n  \
                [--coefs]: print feature indexes and coefs on stdout\n  \
                (requires a trained model and -l)\n  \
+               [--shrink]: try to do feature selection\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -211,6 +215,7 @@ let main () =
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   let no_plot = CLI.get_set_bool ["--no-plot"] args in
   let coefs = CLI.get_set_bool ["--coefs"] args in
+  let shrink = CLI.get_set_bool ["--shrink"] args in
   CLI.finalize ();
   let save_or_load = match maybe_save_model_fn, maybe_load_model_fn with
     | None, None -> Discard
@@ -231,8 +236,17 @@ let main () =
         train_test
           verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
       | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
-        train_test
-          verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+        begin
+          (if shrink then
+             let model_fn = match save_or_load with
+               | Load fn -> fn
+               | _ -> failwith "--shrink but -l not provided" in
+             match maybe_ncomp with
+             | None -> assert(false)
+             | Some ncomp -> minimize verbose model_fn ncomp train_fn test_fn
+          );
+          train_test verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+        end
       | (None, Some test_fn) -> (* only test set *)
         let act = extract_values verbose test_fn in
         predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
