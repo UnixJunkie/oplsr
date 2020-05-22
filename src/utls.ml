@@ -1,8 +1,10 @@
 
 open Printf
 
+module A = Array
 module L = BatList
 module Log = Dolog.Log
+module S = BatString
 
 let with_in_file fn f =
   let input = open_in_bin fn in
@@ -48,6 +50,16 @@ let iter_on_lines_of_file fn f =
   try
     while true do
       f (input_line input)
+    done
+  with End_of_file -> close_in input
+
+let iteri_on_lines_of_file fn f =
+  let input = open_in_bin fn in
+  let count = ref 0 in
+  try
+    while true do
+      f !count (input_line input);
+      incr count
     done
   with End_of_file -> close_in input
 
@@ -146,7 +158,49 @@ let unix_head n fn =
     );
   L.rev !res
 
+let first_line fn =
+  with_in_file fn (fun input ->
+      input_line input
+    )
+
 let string_list_to_file fn l =
   with_out_file fn (fun out ->
       L.iter (fprintf out "%s\n") l
     )
+
+let count_lines (fn: string): int =
+  let count = ref 0 in
+  iter_on_lines_of_file fn (fun _line ->
+      incr count
+    );
+  !count
+
+(* create a 2D float array from reading a csv file  *)
+let matrix_of_csv_file fn =
+  let nb_lines = count_lines fn in
+  let nb_cols =
+    let csv_header = first_line fn in
+    let nb_separators = S.count_char csv_header ' ' in
+    1 + nb_separators in
+  Log.info "%s: (cols, lines): (%d, %d)" fn nb_cols nb_lines;
+  let m = A.make_matrix nb_cols nb_lines 0.0 in
+  iteri_on_lines_of_file fn (fun y line ->
+      let nb_seps = S.count_char line ' ' in
+      assert(nb_seps = nb_cols - 1);
+      let col_strs = S.split_on_char ' ' line in
+      L.iteri (fun x col_str ->
+          (* counted FPs are very sparse and the matrix was 0-initialized *)
+          if col_str <> "0" then
+            try m.(x).(y) <- Scanf.sscanf col_str "%f" (fun x -> x)
+            with exn ->
+              (Log.fatal "Utls.matrix_of_csv_file: cannot parse %s in %s"
+                 col_str line;
+               raise exn)
+        ) col_strs
+    );
+  m
+
+let matrix_to_csv_file _fn _matrix _drop_cols =
+  (* the 1st line should be converted back to integers;
+     this is the csv header with column names *)
+  failwith "not implemented yet"
