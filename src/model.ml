@@ -60,7 +60,8 @@ let extract_values verbose fn =
   (if not verbose then Sys.remove actual_fn);
   actual
 
-let train_test verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
+let train_test
+    verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
@@ -104,6 +105,12 @@ let predict_to_file verbose maybe_ncomp maybe_model_fn test_fn out_fn =
     | Some model_fn ->
       PLS.predict_to_file verbose ncomp_best model_fn test_fn out_fn
 
+let show_coefs verbose model_fn =
+  let coefs = PLS.extract_coefs verbose model_fn in
+  L.iteri (fun i c ->
+      printf "%d %f %f\n" i c (abs_float c)
+    ) coefs
+
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
@@ -126,6 +133,8 @@ let main () =
                [-l|--load <filename>]: restore model from file\n  \
                [-o <filename>]: predictions output file\n  \
                [--no-plot]: don't call gnuplot\n  \
+               [--coefs]: print feature indexes and coefs on stdout\n  \
+               (requires a trained model and -l)\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -153,11 +162,14 @@ let main () =
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   let no_plot = CLI.get_set_bool ["--no-plot"] args in
+  let coefs = CLI.get_set_bool ["--coefs"] args in
   CLI.finalize ();
   let save_or_load = match maybe_save_model_fn, maybe_load_model_fn with
     | None, None -> Discard
     | Some fn, None -> Save fn
-    | None, Some fn -> Load fn
+    | None, Some model_fn ->
+      (if coefs then show_coefs verbose model_fn;
+       Load model_fn)
     | Some _, Some _ -> failwith "Model: -s AND -l provided?!" in
   let actual, preds =
     if train_portion = 1.0 || nfolds <= 1 then
@@ -166,7 +178,8 @@ let main () =
       begin match maybe_train_fn, maybe_test_fn with
       | (None, None) -> failwith "Model: neither --train nor --test"
       | (Some train_fn', None) -> (* only training set *)
-        let train_fn, test_fn = shuffle_then_cut seed train_portion train_fn' in
+        let train_fn, test_fn =
+          shuffle_then_cut seed train_portion train_fn' in
         train_test
           verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
       | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
