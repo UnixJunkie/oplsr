@@ -3,6 +3,7 @@ open Printf
 
 module A = Array
 module L = BatList
+module Ht = Hashtbl
 module Log = Dolog.Log
 module S = BatString
 
@@ -200,7 +201,24 @@ let matrix_of_csv_file fn =
     );
   m
 
-let matrix_to_csv_file _fn _matrix _drop_cols =
-  (* the 1st line should be converted back to integers;
-     this is the csv header with column names *)
-  failwith "not implemented yet"
+let matrix_to_csv_file (fn: string) (m: float array array)
+    (drop_cols: (int, unit) Ht.t): unit =
+  with_out_file fn (fun out ->
+      let dimx = A.length m in
+      let dimy = A.length m.(0) in
+      for y = 0 to dimy - 1 do
+        for x = 0 to dimx - 1 do
+          if not (Ht.mem drop_cols x) then
+            let z = m.(x).(y) in
+            if y = 0 then
+              (* the 1st line should be converted back to integers;
+                 this is the csv header with column names *)
+              fprintf out (if x = 0 then "%d" else " %d") (int_of_float z)
+            else if z = 0.0 then
+              (* don't use many chars per 0 *)
+              fprintf out (if x = 0 then "0" else " 0")
+            else
+              fprintf out (if x = 0 then "%f" else " %f") z
+        done
+      done
+    )
