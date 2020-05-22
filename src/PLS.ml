@@ -134,3 +134,31 @@ let predict debug ncomp_best trained_model_fn test_data_csv_fn =
   let preds = Utls.float_list_of_file out_preds_fn in
   (if not debug then Sys.remove out_preds_fn);
   preds
+
+let extract_coefs debug trained_model_fn =
+  let out_preds_fn = Filename.temp_file "oplsr_coefs_" ".txt" in
+  (* create R script and store it in a temp file *)
+  let r_script_fn = Filename.temp_file "oplsr_coefs_" ".r" in
+  Utls.with_out_file r_script_fn (fun out ->
+      fprintf out
+        "library('pls', quietly = TRUE, verbose = FALSE)\n\
+         load('%s')\n\
+         coefs <- coef(model)\n\
+         write.table(coefs, file = '%s', sep = '\n',\n\
+                     row.names = F, col.names = F)\n\
+         quit()\n"
+        trained_model_fn
+        out_preds_fn
+    );
+  let r_log_fn = Filename.temp_file "oplsr_coefs_" ".log" in
+  (* execute it *)
+  let cmd =
+    sprintf "(R --vanilla --slave < %s 2>&1) > %s" r_script_fn r_log_fn in
+  (if debug then Log.debug "%s" cmd);
+  (if Sys.command cmd <> 0 then
+     failwith ("PLS.extract_coefs: R failure: " ^ cmd));
+  (if not debug then
+     List.iter Sys.remove [r_script_fn; r_log_fn]);
+  let preds = Utls.float_list_of_file out_preds_fn in
+  (if not debug then Sys.remove out_preds_fn);
+  preds

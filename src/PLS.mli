@@ -42,3 +42,8 @@ val predict: bool -> int -> string -> string -> float list
     data to predict from [test_csv_fn] and writing predictions to
     [output_fn]. *)
 val predict_to_file: bool -> int -> string -> string -> string -> unit
+
+(** [coefs = extract_coefs debug trained_model_fn]
+    extract the coefficients from the trained model stored in
+    [trained_model_fn]. *)
+val extract_coefs: bool -> string -> float list

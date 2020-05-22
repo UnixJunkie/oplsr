@@ -18,5 +18,10 @@ train_data <- data.frame(y = ys, x = I(xs))
 model <- plsr(y ~ x, ncomp = 13, method = "simpls", data = train_data,
               validation = "none")
 
+# extract the coefficients
+coefs <- coef(model)
+write.table(coefs, file = "oplsr_coefs.txt", sep = "\n",
+            row.names = F, col.names = F)
+
 save(model, file="oplsr_model.bin")
 quit()
