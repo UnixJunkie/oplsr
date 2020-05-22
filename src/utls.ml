@@ -226,3 +226,9 @@ let list_really_take n l =
   let took = L.take n l in
   assert(L.length took = n);
   took
+
+let exponential_scan n =
+  let rec loop acc x =
+    if x > n then List.rev acc
+    else loop (x :: acc) (2 * x) in
+  loop [] 1
