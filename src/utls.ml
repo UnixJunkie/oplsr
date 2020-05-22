@@ -214,11 +214,14 @@ let matrix_to_csv_file (fn: string) (m: float array array)
               (* the 1st line should be converted back to integers;
                  this is the csv header with column names *)
               fprintf out (if x = 0 then "%d" else " %d") (int_of_float z)
-            else if z = 0.0 then
-              (* don't use many chars per 0 *)
-              fprintf out (if x = 0 then "0" else " 0")
             else
-              fprintf out (if x = 0 then "%f" else " %f") z
+              (* %g: skip trailing zeroes *)
+              fprintf out (if x = 0 then "%g" else " %g") z
         done
       done
     )
+
+let list_really_take n l =
+  let took = L.take n l in
+  assert(L.length took = n);
+  took
