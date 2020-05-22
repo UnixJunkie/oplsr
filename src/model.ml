@@ -123,10 +123,13 @@ let show_coefs verbose model_fn =
 type scan_mode = Linear of int
                | Exponential of int
 
-(* minimize the number of features the model needs (some kind of feature selection) *)
-let minimize debug trained_model_fn ncomp_best train_data_csv_fn test_data_csv_fn =
+(* minimize the number of features the model needs
+   (some kind of feature selection) *)
+let minimize debug ncores trained_model_fn ncomp_best
+    train_data_csv_fn test_data_csv_fn =
   (* we must not fall below the initial model performance *)
-  let init_r2 = train_test_r2 debug trained_model_fn ncomp_best test_data_csv_fn in
+  let init_r2 =
+    train_test_r2 debug trained_model_fn ncomp_best test_data_csv_fn in
   Log.info "minimize: init R2: %f" init_r2;
   let train_data = Utls.matrix_of_csv_file train_data_csv_fn in
   let test_data = Utls.matrix_of_csv_file test_data_csv_fn in
@@ -141,7 +144,8 @@ let minimize debug trained_model_fn ncomp_best train_data_csv_fn test_data_csv_f
     L.sort (fun (_i0, c0) (_i1, c1) ->
         BatFloat.compare (abs_float c0) (abs_float c1)
       ) indexed_coefs in
-  let rec loop prev_r2 n =
+  let nb_features = L.length increasing_coefs in
+  let try_drop n =
     let to_drop =
       let indexes = L.map fst (Utls.list_really_take n increasing_coefs) in
       let ht = Ht.create n in
@@ -151,16 +155,51 @@ let minimize debug trained_model_fn ncomp_best train_data_csv_fn test_data_csv_f
     let smaller_test_csv_fn = Fn.temp_file "oplsr_test_" ".csv" in
     Utls.matrix_to_csv_file smaller_train_csv_fn train_data to_drop;
     Utls.matrix_to_csv_file smaller_test_csv_fn test_data to_drop;
-    Log.info "created %s" smaller_train_csv_fn;
-    Log.info "created %s" smaller_test_csv_fn;
+    (* Log.info "created %s" smaller_train_csv_fn;
+     * Log.info "created %s" smaller_test_csv_fn; *)
     let model_fn = PLS.train debug smaller_train_csv_fn ncomp_best in
-    let curr_r2 = train_test_r2 debug model_fn ncomp_best smaller_train_csv_fn in
-    (if not debug then L.iter Sys.remove [smaller_train_csv_fn; smaller_test_csv_fn]);
-    Log.info "minimize: dropped %d: R2: %f" n curr_r2;
-    if curr_r2 >= prev_r2 then loop curr_r2 (n + 1) else ()
-  in
-  (* FBR: try the exponential policy later *)
-  loop init_r2 1
+    let r2 = train_test_r2 debug model_fn ncomp_best smaller_train_csv_fn in
+    (if not debug then
+       L.iter Sys.remove [smaller_train_csv_fn; smaller_test_csv_fn]);
+    ((if r2 < init_r2 then Log.warn else Log.info) "%d %f" n r2);
+    (n, r2) in
+  Log.info "exponential scan in parallel";
+  let ns = Utls.exponential_scan nb_features in
+  let n_r2s = Parany.Parmap.parmap ncores try_drop ns in
+  let best_r2 = ref init_r2 in
+  let best_n = ref 0 in
+  L.iter (fun (n, r2) ->
+      (* (if r2 >= init_r2 then (\* user feedback *\)
+       *    printf "%d %f\n" n r2
+       * ); *)
+      (if r2 = !best_r2 && n > !best_n then
+         best_n := n
+       else if r2 > !best_r2 then
+         (best_r2 := r2;
+          best_n := n)
+      )
+    ) n_r2s;
+  Log.info "best n r2: %d %f" !best_n !best_r2;
+  Log.info "sequential scan";
+  let rec loop prev_r2 n =
+    if n >= nb_features then ()
+    else
+      let _n, r2 = try_drop n in
+      if r2 < prev_r2 then ()
+      else
+        begin
+          (if r2 >= !best_r2 then
+             (best_r2 := r2;
+              best_n := n)
+          );
+          loop r2 (n + 1)
+        end in
+  loop !best_r2 (!best_n + 1);
+  Log.info "best n r2: %d %f" !best_n !best_r2
+  (* let to_drop = Utls.list_really_take !best_n increasing_coefs in
+   * L.iter (fun (i, c) ->
+   *     Log.info "drop: %d %f" i c
+   *   ) to_drop *)
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -243,9 +282,11 @@ let main () =
                | _ -> failwith "--shrink but -l not provided" in
              match maybe_ncomp with
              | None -> assert(false)
-             | Some ncomp -> minimize verbose model_fn ncomp train_fn test_fn
+             | Some ncomp ->
+               minimize verbose ncores model_fn ncomp train_fn test_fn
           );
-          train_test verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+          train_test
+            verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
         end
       | (None, Some test_fn) -> (* only test set *)
         let act = extract_values verbose test_fn in
