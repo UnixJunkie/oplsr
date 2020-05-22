@@ -10,15 +10,18 @@
 
 open Printf
 
+module A = Array
 module CLI = Minicli.CLI
+module Fn = Filename
+module Ht = Hashtbl
 module L = BatList
 module Log = Dolog.Log
 module PLS = Oplsr.PLS
 module Utls = Oplsr.Utls
 
 let train_test_dump csv_header train test =
-  let train_fn = Filename.temp_file "oplsr_train_" ".csv" in
-  let test_fn = Filename.temp_file "oplsr_test_" ".csv" in
+  let train_fn = Fn.temp_file "oplsr_train_" ".csv" in
+  let test_fn = Fn.temp_file "oplsr_test_" ".csv" in
   Utls.lines_to_file train_fn (csv_header :: train);
   Utls.lines_to_file test_fn (csv_header :: test);
   (train_fn, test_fn)
@@ -51,7 +54,7 @@ type mode = Load of string
           | Discard
 
 let extract_values verbose fn =
-  let actual_fn = Filename.temp_file "PLS_test_" ".txt" in
+  let actual_fn = Fn.temp_file "PLS_test_" ".txt" in
   (* NR > 1: skip CSV header line *)
   let cmd = sprintf "awk '(NR > 1){print $1}' %s > %s" fn actual_fn in
   Utls.run_command verbose cmd;
@@ -87,6 +90,11 @@ let train_test
   (if save_or_load = Discard then Sys.remove model_fn);
   (actual, preds)
 
+let train_test_r2 verbose trained_model_fn ncomp_best test_fn =
+  let actual = extract_values verbose test_fn in
+  let preds = PLS.predict verbose ncomp_best trained_model_fn test_fn in
+  Cpm.RegrStats.r2 actual preds
+
 let predict verbose maybe_ncomp maybe_model_fn test_fn =
   match maybe_ncomp with
   | None -> failwith "Model.predict: --ncomp is required"
@@ -110,6 +118,46 @@ let show_coefs verbose model_fn =
   L.iteri (fun i c ->
       printf "%d %f %f\n" i c (abs_float c)
     ) coefs
+
+(* should we just add one, or double the number of features to drop *)
+type scan_mode = Linear of int
+               | Exponential of int
+
+(* minimize the number of features the model needs (some kind of feature selection) *)
+let minimize debug trained_model_fn ncomp_best train_data_csv_fn test_data_csv_fn =
+  (* we must not fall below the initial model performance *)
+  let init_r2 = train_test_r2 debug trained_model_fn ncomp_best test_data_csv_fn in
+  Log.info "minimize: init R2: %f" init_r2;
+  let train_data = Utls.matrix_of_csv_file train_data_csv_fn in
+  let test_data = Utls.matrix_of_csv_file test_data_csv_fn in
+  (* check they have the same number of columns *)
+  assert(A.length train_data = A.length test_data);
+  (* sort coefs by increasing absolute value *)
+  let increasing_coefs =
+    let indexed_coefs =
+      let coefs = PLS.extract_coefs debug trained_model_fn in
+      (* column 0 is the target value; coefs indexes start at 1 *)
+      L.mapi (fun i c -> (i + 1, c)) coefs in
+    L.sort (fun (_i0, c0) (_i1, c1) ->
+        BatFloat.compare (abs_float c0) (abs_float c1)
+      ) indexed_coefs in
+  let rec loop prev_r2 n =
+    let to_drop =
+      let indexes = L.map fst (Utls.list_really_take n increasing_coefs) in
+      let ht = Ht.create n in
+      L.iter (fun i -> Ht.add ht i ()) indexes;
+      ht in
+    let smaller_train_csv_fn = Fn.temp_file "oplsr_train_" ".csv" in
+    let smaller_test_csv_fn = Fn.temp_file "oplsr_test_" ".csv" in
+    Utls.matrix_to_csv_file smaller_train_csv_fn train_data to_drop;
+    Utls.matrix_to_csv_file smaller_test_csv_fn test_data to_drop;
+    let model_fn = PLS.train debug smaller_train_csv_fn ncomp_best in
+    let curr_r2 = train_test_r2 debug model_fn ncomp_best smaller_train_csv_fn in
+    Log.info "minimize: dropped %d: R2: %f" n curr_r2;
+    if curr_r2 >= prev_r2 then loop curr_r2 (n + 1) else ()
+  in
+  (* FBR: try the exponential policy later *)
+  loop init_r2 1
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -158,7 +206,7 @@ let main () =
                   (* because: we need to read back the whole file after
                      having created it *)
                   fn)
-    | None -> Filename.temp_file "oplsr_model_" ".txt" in
+    | None -> Fn.temp_file "oplsr_model_" ".txt" in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
   let no_plot = CLI.get_set_bool ["--no-plot"] args in
