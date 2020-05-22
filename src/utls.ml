@@ -217,7 +217,8 @@ let matrix_to_csv_file (fn: string) (m: float array array)
             else
               (* %g: skip trailing zeroes *)
               fprintf out (if x = 0 then "%g" else " %g") z
-        done
+        done;
+        fprintf out "\n"
       done
     )
 
