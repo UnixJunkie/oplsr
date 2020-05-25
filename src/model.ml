@@ -125,8 +125,14 @@ type scan_mode = Linear of int
 
 (* minimize the number of features the model needs
    (some kind of feature selection) *)
-let minimize debug ncores trained_model_fn ncomp_best
+let minimize debug ncores save_or_load maybe_ncomp 
     train_data_csv_fn test_data_csv_fn =
+  let trained_model_fn = match save_or_load with
+    | Load fn -> fn
+    | _ -> failwith "Model.minimuze: --shrink but -l not provided" in
+  let ncomp_best = match maybe_ncomp with
+    | None -> failwith "Model.minimuze: --ncomp was not provided"
+    | Some ncomp -> ncomp in
   (* we must not fall below the initial model performance *)
   let init_r2 =
     train_test_r2 debug trained_model_fn ncomp_best test_data_csv_fn in
@@ -155,8 +161,10 @@ let minimize debug ncores trained_model_fn ncomp_best
     let smaller_test_csv_fn = Fn.temp_file "oplsr_test_" ".csv" in
     Utls.matrix_to_csv_file smaller_train_csv_fn train_data to_drop;
     Utls.matrix_to_csv_file smaller_test_csv_fn test_data to_drop;
-    (* Log.info "created %s" smaller_train_csv_fn;
-     * Log.info "created %s" smaller_test_csv_fn; *)
+    (if debug then
+       (Log.info "created %s" smaller_train_csv_fn;
+        Log.info "created %s" smaller_test_csv_fn)
+    );
     let model_fn = PLS.train debug smaller_train_csv_fn ncomp_best in
     let r2 = train_test_r2 debug model_fn ncomp_best smaller_train_csv_fn in
     (if not debug then
@@ -277,14 +285,7 @@ let main () =
       | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
         begin
           (if shrink then
-             let model_fn = match save_or_load with
-               | Load fn -> fn
-               | _ -> failwith "--shrink but -l not provided" in
-             match maybe_ncomp with
-             | None -> assert(false)
-             | Some ncomp ->
-               minimize verbose ncores model_fn ncomp train_fn test_fn
-          );
+             minimize verbose ncores save_or_load maybe_ncomp train_fn test_fn);
           train_test
             verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
         end
