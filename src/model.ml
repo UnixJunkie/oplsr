@@ -113,11 +113,37 @@ let predict_to_file verbose maybe_ncomp maybe_model_fn test_fn out_fn =
     | Some model_fn ->
       PLS.predict_to_file verbose ncomp_best model_fn test_fn out_fn
 
-let show_coefs verbose model_fn =
-  let coefs = PLS.extract_coefs verbose model_fn in
-  L.iteri (fun i c ->
-      printf "%d %f %f\n" i c (abs_float c)
-    ) coefs
+(* if [verbose], print on stdout all feature indexes, their associated
+   coefficient and coef. absolute value.
+   If [drop_n] > 0 then feature indexes to drop will be written to [drop_fn] *)
+let show_coefs verbose model_fn drop_n drop_fn =
+  let i_coef_abs_coefs =
+    let coefs = PLS.extract_coefs verbose model_fn in
+    L.mapi (fun i c ->
+        let ac = abs_float c in
+        (i, c, ac)
+      ) coefs in
+  (* sort features by increasing coef. absolute value *)
+  let sorted =
+    L.sort (fun (_i, _c0, ac0) (_j, _c1, ac1) ->
+        BatFloat.compare ac0 ac1
+      ) i_coef_abs_coefs in
+  (if verbose then
+     L.iter (fun (i, c, ac) ->
+         printf "%d %f %f\n" i c ac
+       ) sorted
+  );
+  if drop_n > 0 then
+    begin
+      Utls.enforce (drop_fn <> "")
+        "Model.show_coefs: drop_n > 0 but drop_fn = ''";
+      let to_drop = Utls.list_really_take drop_n sorted in
+      Utls.with_out_file drop_fn (fun out ->
+          L.iter (fun (i, _c, _ac) ->
+              fprintf out "%d\n" i
+            ) to_drop
+        )
+    end
 
 (* should we just add one, or double the number of features to drop *)
 type scan_mode = Linear of int
@@ -125,14 +151,11 @@ type scan_mode = Linear of int
 
 (* minimize the number of features the model needs
    (some kind of feature selection) *)
-let minimize debug ncores save_or_load maybe_ncomp 
-    train_data_csv_fn test_data_csv_fn =
-  let trained_model_fn = match save_or_load with
-    | Load fn -> fn
-    | _ -> failwith "Model.minimuze: --shrink but -l not provided" in
+let minimize debug ncores maybe_ncomp train_data_csv_fn test_data_csv_fn =
   let ncomp_best = match maybe_ncomp with
     | None -> failwith "Model.minimuze: --ncomp was not provided"
     | Some ncomp -> ncomp in
+  let trained_model_fn = PLS.train debug train_data_csv_fn ncomp_best in
   (* we must not fall below the initial model performance *)
   let init_r2 =
     train_test_r2 debug trained_model_fn ncomp_best test_data_csv_fn in
@@ -203,11 +226,8 @@ let minimize debug ncores save_or_load maybe_ncomp
           loop r2 (n + 1)
         end in
   loop !best_r2 (!best_n + 1);
-  Log.info "best n r2: %d %f" !best_n !best_r2
-  (* let to_drop = Utls.list_really_take !best_n increasing_coefs in
-   * L.iter (fun (i, c) ->
-   *     Log.info "drop: %d %f" i c
-   *   ) to_drop *)
+  Log.info "best n r2: %d %f" !best_n !best_r2;
+  (!best_n, best_r2)
 
 let main () =
   Log.(set_log_level DEBUG);
@@ -233,7 +253,9 @@ let main () =
                [--no-plot]: don't call gnuplot\n  \
                [--coefs]: print feature indexes and coefs on stdout\n  \
                (requires a trained model and -l)\n  \
-               [--shrink]: try to do feature selection\n  \
+               [--shrink]: find droppable features\n  \
+               [--drop-fn <filename>]: list dropped features to file\n  \
+               [--drop <int>]: how many low coefs features to drop\n  \
                [-v]: verbose/debug mode\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
@@ -260,6 +282,8 @@ let main () =
     | None -> Fn.temp_file "oplsr_model_" ".txt" in
   let train_portion = CLI.get_float_def ["-p"] args train_portion_def in
   let nfolds = CLI.get_int_def ["--NxCV"] args 1 in
+  let drop_n = CLI.get_int_def ["--drop"] args 0 in
+  let drop_fn = CLI.get_string_def ["--drop-fn"] args "" in
   let no_plot = CLI.get_set_bool ["--no-plot"] args in
   let coefs = CLI.get_set_bool ["--coefs"] args in
   let shrink = CLI.get_set_bool ["--shrink"] args in
@@ -268,57 +292,70 @@ let main () =
     | None, None -> Discard
     | Some fn, None -> Save fn
     | None, Some model_fn ->
-      (if coefs then show_coefs verbose model_fn;
+      (if coefs then show_coefs verbose model_fn drop_n drop_fn;
        Load model_fn)
     | Some _, Some _ -> failwith "Model: -s AND -l provided?!" in
-  let actual, preds =
-    if train_portion = 1.0 || nfolds <= 1 then
-      (* (p = 1.0 && nfolds > 1) --> we use R pls NxCV mechanism
-         to train the model without overfiting to the data *)
-      begin match maybe_train_fn, maybe_test_fn with
-      | (None, None) -> failwith "Model: neither --train nor --test"
-      | (Some train_fn', None) -> (* only training set *)
-        let train_fn, test_fn =
-          shuffle_then_cut seed train_portion train_fn' in
-        train_test
-          verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
-      | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
-        begin
-          (if shrink then
-             minimize verbose ncores save_or_load maybe_ncomp train_fn test_fn);
-          train_test
-            verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
-        end
-      | (None, Some test_fn) -> (* only test set *)
-        let act = extract_values verbose test_fn in
-        predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
-          output_fn;
-        let pred = Utls.float_list_of_file output_fn in
-        (act, pred)
-      end
-    else
-      begin match maybe_train_fn, maybe_test_fn with
-      | (None, None) -> failwith "Model: neither --train nor --test"
+  if shrink then
+    begin match (maybe_train_fn, maybe_test_fn) with
       | (Some train_fn', None) ->
-        let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
-        let actual_pred_pairs =
-          Parany.Parmap.parmap ncores (fun (x, y) ->
-              (* we disable R pls NxCV here.
-                 Also, we don't save the model since several are build in // *)
-              train_test verbose 1 Discard maybe_ncomp 1 x y
+        let train_test_fns =
+          if nfolds > 1 then
+            shuffle_then_nfolds seed nfolds train_fn'
+          else
+            [shuffle_then_cut seed train_portion train_fn'] in
+        let drop_n_r2s =
+          L.map (fun (train_fn, test_fn) ->
+              minimize verbose ncores maybe_ncomp train_fn test_fn
             ) train_test_fns in
-        let xs, ys = L.split actual_pred_pairs in
-        (L.concat xs, L.concat ys)
-      | (Some _train_fn, Some _test_fn) ->
-        failwith "Model: nfolds > 1 && --train && --test"
-      | (None, Some _test_fn) ->
-        failwith "Model: nfolds > 1 && --test only"
-      end in
-  let test_R2 = Cpm.RegrStats.r2 actual preds in
-  (if not no_plot then
-     let title = sprintf "PLS model fit; R2=%.2f" test_R2 in
-     Gnuplot.regr_plot title actual preds
-  );
-  Log.info "testR2: %f" test_R2
+        let min_drop = L.min (L.map fst drop_n_r2s) in
+        Log.info "Can drop %d low coef features" min_drop
+      | _ -> failwith "Model: --shrink requires --train (but not --test)"
+    end
+  else
+    let actual, preds =
+      if train_portion = 1.0 || nfolds <= 1 then
+        (* (p = 1.0 && nfolds > 1) --> we use R pls NxCV mechanism
+           to train the model without overfiting to the data *)
+        begin match maybe_train_fn, maybe_test_fn with
+          | (None, None) -> failwith "Model: neither --train nor --test"
+          | (Some train_fn', None) -> (* only training set *)
+            let train_fn, test_fn =
+              shuffle_then_cut seed train_portion train_fn' in
+            train_test
+              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+          | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
+            train_test
+              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+          | (None, Some test_fn) -> (* only test set *)
+            let act = extract_values verbose test_fn in
+            predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
+              output_fn;
+            let pred = Utls.float_list_of_file output_fn in
+            (act, pred)
+        end
+      else
+        begin match maybe_train_fn, maybe_test_fn with
+          | (None, None) -> failwith "Model: neither --train nor --test"
+          | (Some train_fn', None) ->
+            let train_test_fns = shuffle_then_nfolds seed nfolds train_fn' in
+            let actual_pred_pairs =
+              Parany.Parmap.parmap ncores (fun (x, y) ->
+                  (* we disable R pls NxCV here.
+                     Also, we don't save the model since several are build in // *)
+                  train_test verbose 1 Discard maybe_ncomp 1 x y
+                ) train_test_fns in
+            let xs, ys = L.split actual_pred_pairs in
+            (L.concat xs, L.concat ys)
+          | (Some _train_fn, Some _test_fn) ->
+            failwith "Model: nfolds > 1 && --train && --test"
+          | (None, Some _test_fn) ->
+            failwith "Model: nfolds > 1 && --test only"
+        end in
+    let test_R2 = Cpm.RegrStats.r2 actual preds in
+    (if not no_plot then
+       let title = sprintf "PLS model fit; R2=%.2f" test_R2 in
+       Gnuplot.regr_plot title actual preds
+    );
+    Log.info "testR2: %f" test_R2
 
 let () = main ()
