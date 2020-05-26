@@ -232,3 +232,6 @@ let exponential_scan n =
     if x > n then List.rev acc
     else loop (x :: acc) (2 * x) in
   loop [] 1
+
+let fst3 (a, _, _) =
+  a
