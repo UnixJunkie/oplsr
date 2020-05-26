@@ -293,7 +293,7 @@ let main () =
     | Some fn, None -> Save fn
     | None, Some model_fn ->
       begin
-        (if coefs then
+        (if coefs || drop_n > 0 then
            show_coefs verbose model_fn drop_n drop_fn
         );
         Load model_fn
