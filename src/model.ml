@@ -142,7 +142,7 @@ let show_coefs verbose model_fn drop_n drop_fn =
           L.iter (fun (i, _c, _ac) ->
               fprintf out "%d\n" i
             ) to_drop
-        )
+        );
     end
 
 (* should we just add one, or double the number of features to drop *)
@@ -252,7 +252,7 @@ let main () =
                [-o <filename>]: predictions output file\n  \
                [--no-plot]: don't call gnuplot\n  \
                [--coefs]: print feature indexes and coefs on stdout\n  \
-               (requires a trained model and -l)\n  \
+               (requires a trained model (-l))\n  \
                [--shrink]: find droppable features\n  \
                [--drop-fn <filename>]: list dropped features to file\n  \
                [--drop <int>]: how many low coefs features to drop\n  \
@@ -292,8 +292,12 @@ let main () =
     | None, None -> Discard
     | Some fn, None -> Save fn
     | None, Some model_fn ->
-      (if coefs then show_coefs verbose model_fn drop_n drop_fn;
-       Load model_fn)
+      begin
+        (if coefs then
+           show_coefs verbose model_fn drop_n drop_fn
+        );
+        Load model_fn
+      end
     | Some _, Some _ -> failwith "Model: -s AND -l provided?!" in
   if shrink then
     begin match (maybe_train_fn, maybe_test_fn) with
