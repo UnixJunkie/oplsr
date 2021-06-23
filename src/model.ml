@@ -229,6 +229,10 @@ let minimize debug ncores maybe_ncomp train_data_csv_fn test_data_csv_fn =
   Log.info "best n r2: %d %f" !best_n !best_r2;
   (!best_n, best_r2)
 
+(* prevent gnuplot from interpreting them like latex *)
+let protect_underscores s =
+  Utls.string_replace_all "_" "\\_" s
+
 let extract_string_opt = function
   | Some str -> str
   | None -> ""
@@ -362,9 +366,10 @@ let main () =
     let test_R2 = Cpm.RegrStats.r2 actual preds in
     (if not no_plot then
        let title =
-         sprintf "%s PLS model fit; R2=%.2f"
-           (extract_string_opt maybe_train_fn)
-           test_R2 in
+         protect_underscores
+           (sprintf "%s PLS model fit; R2=%.2f"
+              (extract_string_opt maybe_train_fn)
+              test_R2) in
        Gnuplot.regr_plot title actual preds
     );
     Log.info "testR2: %f" test_R2
