@@ -235,7 +235,3 @@ let exponential_scan n =
 
 let fst3 (a, _, _) =
   a
-
-let string_replace_all to_replace replacement s =
-  let pat = Str.(regexp (quote to_replace)) in
-  Str.global_substitute pat (fun _ -> replacement) s

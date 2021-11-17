@@ -17,6 +17,7 @@ module Ht = Hashtbl
 module L = BatList
 module Log = Dolog.Log
 module PLS = Oplsr.PLS
+module S = BatString
 module Utls = Oplsr.Utls
 
 let train_test_dump csv_header train test =
@@ -229,9 +230,9 @@ let minimize debug ncores maybe_ncomp train_data_csv_fn test_data_csv_fn =
   Log.info "best n r2: %d %f" !best_n !best_r2;
   (!best_n, best_r2)
 
-(* prevent gnuplot from interpreting them like latex *)
-let protect_underscores s =
-  Utls.string_replace_all "_" "\\_" s
+(* prevent gnuplot from interpreting underscores like LaTeX *)
+let protect_underscores str =
+  S.nreplace ~str ~sub:"_" ~by:"\\_"
 
 let extract_string_opt = function
   | Some str -> str
