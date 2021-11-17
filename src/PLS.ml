@@ -32,8 +32,7 @@ let optimize debug nprocs train_data_csv_fn nb_folds ncomp_max =
          ys <- data[, 1:1]\n\
          train_data <- data.frame(y = ys, x = I(xs))\n\
          model <- plsr(y ~ x, method = 'simpls', ncomp = %d, \
-                       data = train_data,\n\
-                       %s)\n\
+                       data = train_data, %s)\n\
          r2 <- R2(model)\n\
          r2s <- unlist(r2[1])\n\
          ncomp_best <- selectNcomp(model, \"randomization\", plot = FALSE)
