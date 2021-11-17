@@ -64,8 +64,23 @@ let extract_values verbose fn =
   (if not verbose then Sys.remove actual_fn);
   actual
 
+let remove_outliers actual preds =
+  (* actual values are from the training set; they
+   * are used to compute the outlier filtering parameters: median and MAD.
+   * (we want something robust to extreme outliers) *)
+  let median, mad = Utls.list_madf actual in
+  let lbound = median -. (3.0 *. mad) in
+  let rbound = median +. (3.0 *. mad) in
+  let act_preds = L.combine actual preds in
+  let ok, ko = L.partition (fun (_act, pred) ->
+      lbound <= pred && pred <= rbound
+    ) act_preds in
+  let kos = L.length ko in
+  if kos > 0 then Log.warn "outlier preds: %d" kos;
+  L.split ok
+
 let train_test
-    verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
+    verbose rm_outlier_preds nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
@@ -89,7 +104,10 @@ let train_test
   let preds = PLS.predict verbose ncomp_best model_fn test_fn in
   (* filesystem cleanup *)
   (if save_or_load = Discard then Sys.remove model_fn);
-  (actual, preds)
+  if rm_outlier_preds then
+    remove_outliers actual preds
+  else
+    (actual, preds)
 
 let train_test_r2 verbose trained_model_fn ncomp_best test_fn =
   let actual = extract_values verbose test_fn in
@@ -270,6 +288,7 @@ let main () =
                [--drop-fn <filename>]: list dropped features to file\n  \
                [--drop <int>]: how many low coefs features to drop\n  \
                [-v]: verbose/debug mode\n  \
+               [--rm-outliers]: remove outlier preds (out of median+/-(3*MAD))\n  \
                [-h|--help]: show this message\n"
         Sys.argv.(0) train_portion_def;
       exit 1
@@ -280,6 +299,7 @@ let main () =
       let () = Random.self_init () in
       Random.int 0x3FFFFFFF (* 0x3FFFFFFF = 2^30 - 1 *) in
   let verbose = CLI.get_set_bool ["-v"] args in
+  let rm_outliers = CLI.get_set_bool ["--rm-outliers"] args in
   let maybe_train_fn = CLI.get_string_opt ["--train"] args in
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
@@ -339,10 +359,10 @@ let main () =
             let train_fn, test_fn =
               shuffle_then_cut seed train_portion train_fn' in
             train_test
-              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+              verbose rm_outliers ncores save_or_load maybe_ncomp nfolds train_fn test_fn
           | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
             train_test
-              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
+              verbose rm_outliers ncores save_or_load maybe_ncomp nfolds train_fn test_fn
           | (None, Some test_fn) -> (* only test set *)
             let act = extract_values verbose test_fn in
             predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
@@ -359,7 +379,7 @@ let main () =
               Parany.Parmap.parmap ncores (fun (x, y) ->
                   (* we disable R pls NxCV here.
                      Also, we don't save the model since several are build in // *)
-                  train_test verbose 1 Discard maybe_ncomp 1 x y
+                  train_test verbose rm_outliers 1 Discard maybe_ncomp 1 x y
                 ) train_test_fns in
             let xs, ys = L.split actual_pred_pairs in
             (L.concat xs, L.concat ys)

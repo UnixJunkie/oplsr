@@ -249,4 +249,4 @@ let list_medianf (l: float list): float =
 let list_madf l =
   let med = list_medianf l in
   let abs_devs = L.rev_map (fun x -> abs_float (x -. med)) l in
-  list_medianf abs_devs
+  (med, list_medianf abs_devs)
