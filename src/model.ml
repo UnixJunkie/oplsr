@@ -238,6 +238,10 @@ let extract_string_opt = function
   | Some str -> str
   | None -> ""
 
+let extract_int_opt = function
+  | Some i -> i
+  | None -> -1
+
 let main () =
   Log.(set_log_level DEBUG);
   Log.color_on ();
@@ -365,12 +369,16 @@ let main () =
             failwith "Model: nfolds > 1 && --test only"
         end in
     let test_R2 = Cpm.RegrStats.r2 actual preds in
+    let test_RMSE = Cpm.RegrStats.rmse actual preds in
     (if not no_plot then
        let title =
          protect_underscores
-           (sprintf "%s PLS model fit; R2=%.2f"
-              (extract_string_opt maybe_train_fn)
-              test_R2) in
+           (sprintf "PLS N=%d k=%d R2=%.2f RMSE=%.2f fn=%s"
+              (extract_int_opt maybe_ncomp)
+              nfolds
+              test_R2
+              test_RMSE
+              (extract_string_opt maybe_train_fn)) in
        Gnuplot.regr_plot title actual preds
     );
     Log.info "testR2: %f" test_R2
