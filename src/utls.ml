@@ -235,3 +235,18 @@ let exponential_scan n =
 
 let fst3 (a, _, _) =
   a
+
+let list_medianf (l: float list): float =
+  let xs = Array.of_list l in
+  Array.sort BatFloat.compare xs;
+  let n = Array.length xs in
+  if n mod 2 = 1 then
+    xs.(n/2)
+  else
+    (0.5 *. (xs.(n/2) +. xs.(n/2 - 1)))
+
+(* Median Absolute Deviation *)
+let list_madf l =
+  let med = list_medianf l in
+  let abs_devs = L.rev_map (fun x -> abs_float (x -. med)) l in
+  list_medianf abs_devs
