@@ -13,7 +13,7 @@ module Log = Dolog.Log
 (* CSV file must have modeled variable as first column, all other columns are
    feature values. CSV file must be in space separated dense format.
    The first line is the CSV header (column numbers are fine). *)
-let optimize debug nprocs train_data_csv_fn nb_folds =
+let optimize debug nprocs train_data_csv_fn nb_folds ncomp_max =
   let validation_str =
     if nb_folds > 1 then
       sprintf "validation = 'CV', segments = %d" nb_folds
@@ -31,17 +31,19 @@ let optimize debug nprocs train_data_csv_fn nb_folds =
          xs <- data[, 2:ncols]\n\
          ys <- data[, 1:1]\n\
          train_data <- data.frame(y = ys, x = I(xs))\n\
-         model <- plsr(y ~ x, method = 'simpls', data = train_data,\n\
+         model <- plsr(y ~ x, method = 'simpls', ncomp = %d, \
+                       data = train_data,\n\
                        %s)\n\
          r2 <- R2(model)\n\
          r2s <- unlist(r2[1])\n\
-         ncomp_best <- which.max(r2s)\n\
+         ncomp_best <- selectNcomp(model, \"randomization\", plot = FALSE)
          r2_max = r2s[ncomp_best]\n\
          printf <- function(...) cat(sprintf(...))\n\
          printf('ncomp: %%d R2: %%f\n', ncomp_best, r2_max)\n\
          quit()\n"
         nprocs
         train_data_csv_fn
+        ncomp_max
         validation_str
     );
   let r_log_fn = Filename.temp_file "oplsr_optim_" ".log" in

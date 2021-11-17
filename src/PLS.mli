@@ -6,7 +6,7 @@
    Kyushu Institute of Technology,
    680-4 Kawazu, Iizuka, Fukuoka, 820-8502, Japan. *)
 
-(** [(nb_comp_opt, r2) = optimize debug nprocs train_csv_fn nb_folds]
+(** [(nb_comp_opt, r2) = optimize debug nprocs train_csv_fn nb_folds ncomp_max]
     Optimize a Partial Least Square (PLS) model.
     Especially, the optimal number of components is found,
     as well as the corresponding R^2 (a model regression performance metric
@@ -20,8 +20,10 @@
     Its first line is a CSV header (column numbers are fine).
     [nb_folds] is the number of folds of cross validation;
     five or ten is standard for this one.
-    ([nb_folds] > 1) is mandatory. *)
-val optimize: bool -> int -> string -> int -> int * float
+    ([nb_folds] > 1) is mandatory.
+    [ncomp_max] maximum number of components to consider
+    (1 <= [ncomp_max] <= ndims). *)
+val optimize: bool -> int -> string -> int -> int -> int * float
 
 (** [trained_model_fn = train debug train_csv_fn nb_comp_opt]
     train a model using the given (optimal) number of components.
