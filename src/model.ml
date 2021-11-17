@@ -65,7 +65,7 @@ let extract_values verbose fn =
   actual
 
 let train_test
-    verbose nprocs save_or_load maybe_ncomp nfolds ncomp_max train_fn test_fn =
+    verbose nprocs save_or_load maybe_ncomp nfolds train_fn test_fn =
   let nb_features = csv_nb_features train_fn in
   let nb_features' = csv_nb_features test_fn in
   assert(nb_features = nb_features');
@@ -75,7 +75,7 @@ let train_test
        assert(ncomp < nb_features);
        ncomp)
     | None ->
-      let ncomp_best, train_R2 = PLS.optimize verbose nprocs train_fn nfolds ncomp_max in
+      let ncomp_best, train_R2 = PLS.optimize verbose nprocs train_fn nfolds in
       Log.info "ncomp_best: %d/%d trainR2: %f" ncomp_best nb_features train_R2;
       ncomp_best in
   let model_fn = match save_or_load with
@@ -258,7 +258,6 @@ let main () =
                [--seed <int>]: RNG seed\n  \
                [--test <test.txt>]: test set\n  \
                [--ncomp <int>]: optimal number of PLS components\n  \
-               --ncomp-max <int>: max number of PLS components to consider\n  \
                [-np <int>]: max CPU cores\n  \
                [--NxCV <int>]: number of folds of cross validation\n  \
                [-s|--save <filename>]: save model to file\n  \
@@ -285,7 +284,6 @@ let main () =
   let maybe_test_fn = CLI.get_string_opt ["--test"] args in
   let ncores = CLI.get_int_def ["-np"] args 1 in
   let maybe_ncomp = CLI.get_int_opt ["--ncomp"] args in
-  let ncomp_max = CLI.get_int ["--ncomp-max"] args in
   let maybe_save_model_fn = CLI.get_string_opt ["-s";"--save"] args in
   let maybe_load_model_fn = CLI.get_string_opt ["-l";"--load"] args in
   let output_fn = match CLI.get_string_opt ["-o"] args with
@@ -341,10 +339,10 @@ let main () =
             let train_fn, test_fn =
               shuffle_then_cut seed train_portion train_fn' in
             train_test
-              verbose ncores save_or_load maybe_ncomp nfolds ncomp_max train_fn test_fn
+              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
           | (Some train_fn, Some test_fn) -> (* explicit training and test sets *)
             train_test
-              verbose ncores save_or_load maybe_ncomp nfolds ncomp_max train_fn test_fn
+              verbose ncores save_or_load maybe_ncomp nfolds train_fn test_fn
           | (None, Some test_fn) -> (* only test set *)
             let act = extract_values verbose test_fn in
             predict_to_file verbose maybe_ncomp maybe_load_model_fn test_fn
@@ -361,7 +359,7 @@ let main () =
               Parany.Parmap.parmap ncores (fun (x, y) ->
                   (* we disable R pls NxCV here.
                      Also, we don't save the model since several are build in // *)
-                  train_test verbose 1 Discard maybe_ncomp 1 ncomp_max x y
+                  train_test verbose 1 Discard maybe_ncomp 1 x y
                 ) train_test_fns in
             let xs, ys = L.split actual_pred_pairs in
             (L.concat xs, L.concat ys)

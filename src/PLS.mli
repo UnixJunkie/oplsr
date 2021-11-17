@@ -20,10 +20,8 @@
     Its first line is a CSV header (column numbers are fine).
     [nb_folds] is the number of folds of cross validation;
     five or ten is standard for this one.
-    ([nb_folds] > 1) is mandatory.
-    [ncomp_max] maximum number of components to consider
-    (1 <= [ncomp_max] <= ndims). *)
-val optimize: bool -> int -> string -> int -> int -> int * float
+    ([nb_folds] > 1) is mandatory. *)
+val optimize: bool -> int -> string -> int -> int * float
 
 (** [trained_model_fn = train debug train_csv_fn nb_comp_opt]
     train a model using the given (optimal) number of components.
